@@ -1,36 +1,51 @@
-<!-- resources/js/Pages/Productos/Index.vue -->
 <script setup>
 import { ref, watch } from 'vue'
 import { router, Link, usePage } from '@inertiajs/vue3'
 
 const props = defineProps({
-  productos: Object,  // paginación (data, links, from, etc.)
-  filters:   Object,  // { q: '...' }
+  productos: { type: Object, required: true }, // paginación (data, links, from, etc.)
+  filters:   { type: Object, default: () => ({ q: '' }) },
 })
 
 const page  = usePage()
 const flash = page.props.flash ?? {}
 
-const q = ref(props.filters?.q ?? '')
-let delay = null
+// -------------------- helper seguro para Ziggy --------------------
+function safeRoute(name, params = {}, absolute = true) {
+  try {
+    if (typeof route !== 'undefined' && route().has(name)) {
+      return route(name, params, absolute)
+    }
+  } catch (e) {}
+  return null
+}
+
+// -------------------- buscador --------------------
+const q = ref(props.filters.q ?? '')
+let t = null
 watch(q, (val) => {
-  clearTimeout(delay)
-  delay = setTimeout(() => {
-    router.get(route('productos.index'), { q: val }, { preserveState: true, replace: true })
+  clearTimeout(t)
+  t = setTimeout(() => {
+    const url = safeRoute('productos.index', { q: val })
+    if (url) router.get(url, {}, { preserveState: true, replace: true })
   }, 400)
 })
 
+// -------------------- acciones --------------------
 const eliminar = (id) => {
+  const url = safeRoute('productos.destroy', id)
+  if (!url) return
   if (!confirm('¿Eliminar este producto?')) return
-  router.delete(route('productos.destroy', id), { preserveScroll: true })
+  router.delete(url, { preserveScroll: true })
 }
 
 const money = (n) =>
   new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' }).format(n ?? 0)
 
-// (opcional) placeholder local si no hay imagen. Crea este archivo en public/images/placeholder-product.png
-//const PLACEHOLDER = '/images/placeholder-product.png'
-//</script>
+// (opcional) placeholder local si no hay imagen.
+// crea este archivo si quieres usarlo.
+const PLACEHOLDER = '/images/placeholder-product.png'
+</script>
 
 <template>
   <div class="max-w-6xl mx-auto px-6 py-8">
@@ -43,8 +58,10 @@ const money = (n) =>
     <div class="mb-6 flex flex-wrap items-center justify-between gap-3">
       <h1 class="text-3xl font-semibold text-indigo-800">🐔 Productos</h1>
 
+      <!-- Botón solo si Ziggy tiene la ruta -->
       <Link
-        :href="route('productos.create')"
+        v-if="safeRoute('productos.create')"
+        :href="safeRoute('productos.create')"
         class="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 transition"
       >
         Nuevo producto
@@ -83,34 +100,27 @@ const money = (n) =>
               {{ (productos.from ?? 1) + index }}
             </td>
 
-            <!-- ✅ Miniatura -->
+            <!-- Miniatura (usa imagenUrl si viene, o /storage/imagen, o placeholder) -->
             <td class="px-4 py-3">
               <img
-                :src="p.imagen ? `/storage/${p.imagen}` : PLACEHOLDER"
+                :src="p.imagenUrl || (p.imagen ? `/storage/${p.imagen}` : PLACEHOLDER)"
                 alt="Producto"
                 class="h-10 w-10 object-cover rounded-md border bg-white"
               />
             </td>
 
-            <td class="px-4 py-3 text-gray-800 font-medium">
-              {{ p.nombre }}
-            </td>
+            <td class="px-4 py-3 text-gray-800 font-medium">{{ p.nombre }}</td>
 
             <td class="px-4 py-3 text-gray-600 max-w-xs truncate" :title="p.descripcion || 'Sin descripción'">
               {{ p.descripcion || '—' }}
             </td>
 
-            <td class="px-4 py-3 text-gray-700">
-              {{ money(p.precio) }}
-            </td>
+            <td class="px-4 py-3 text-gray-700">{{ money(p.precio) }}</td>
 
-            <td class="px-4 py-3 font-semibold"
-             :class="p.stock < 10 ? 'text-red-600' : 'text-gray-700'"
-            >
-             {{ p.stock }}
-            <span v-if="p.stock < 10" class="ml-1 text-xs text-red-500">⚠ Stock bajo</span>
+            <td class="px-4 py-3 font-semibold" :class="p.stock < 10 ? 'text-red-600' : 'text-gray-700'">
+              {{ p.stock }}
+              <span v-if="p.stock < 10" class="ml-1 text-xs text-red-500">⚠ Stock bajo</span>
             </td>
-
 
             <td class="px-4 py-3">
               <span
@@ -125,13 +135,15 @@ const money = (n) =>
 
             <td class="px-4 py-3 text-right space-x-3">
               <Link
-                :href="route('productos.edit', p.id)"
+                v-if="safeRoute('productos.edit', p.id)"
+                :href="safeRoute('productos.edit', p.id)"
                 class="text-indigo-600 hover:text-indigo-700 font-medium text-sm"
               >
                 ✏️ Editar
               </Link>
 
               <button
+                v-if="safeRoute('productos.destroy', p.id)"
                 @click="eliminar(p.id)"
                 class="text-red-600 hover:text-red-700 font-medium text-sm"
               >

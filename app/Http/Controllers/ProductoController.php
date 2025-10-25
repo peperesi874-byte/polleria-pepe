@@ -10,21 +10,30 @@ use Illuminate\Support\Facades\Storage;
 
 class ProductoController extends Controller
 {
-    public function index()
+   public function index()
 {
-    $productos = Producto::orderBy('id','desc')->paginate(12)
+    $q = request('q', '');
+
+    $productos = Producto::orderBy('id', 'desc')
+        ->when($q !== '', fn($w) => $w->where('nombre', 'like', "%{$q}%"))
+        ->paginate(12)
         ->through(fn ($p) => [
-            'id'         => $p->id,
-            'nombre'     => $p->nombre,
-            'precio'     => (float) $p->precio,
-            'stock'      => (int) $p->stock,
-            'activo'     => (bool) $p->activo,
-            'imagen'     => $p->imagen, // ruta relativa
-            'imagenUrl'  => $p->imagen ? Storage::url($p->imagen) : null, // URL pública
+            'id'        => $p->id,
+            'nombre'    => $p->nombre,
+            'descripcion'=> $p->descripcion,
+            'precio'    => (float) $p->precio,
+            'stock'     => (int) $p->stock,
+            'activo'    => (bool) $p->activo,
+            'imagen'    => $p->imagen,                                   // ruta relativa
+            'imagenUrl' => $p->imagen ? \Storage::url($p->imagen) : null, // URL pública
         ]);
 
-    return Inertia::render('Productos/Index', ['productos' => $productos]);
+    return \Inertia\Inertia::render('Productos/Index', [
+        'productos' => $productos,
+        'filters'   => ['q' => $q], // 👈 agregado
+    ]);
 }
+
     public function create()
     {
         return Inertia::render('Productos/Create');
@@ -37,11 +46,10 @@ class ProductoController extends Controller
             'descripcion' => 'nullable|string|max:1000',
             'precio'      => 'required|numeric|min:0',
             'stock'       => 'required|integer|min:0',
-            'activo'      => 'boolean',
+            'activo'      => 'sometimes|boolean',
             'imagen'      => 'nullable|image|max:2048',
         ]);
 
-        // Si subió imagen la guardamos en /storage/app/public/productos
         if ($r->hasFile('imagen')) {
             $data['imagen'] = $r->file('imagen')->store('productos', 'public');
         }
@@ -64,8 +72,8 @@ class ProductoController extends Controller
                 'stock'       => (int) $producto->stock,
                 'descripcion' => $producto->descripcion,
                 'activo'      => (bool) $producto->activo,
-                'imagen'      => $producto->imagen,                               // ruta relativa guardada en BD
-                'imagenUrl'   => $producto->imagen ? Storage::url($producto->imagen) : null, // URL pública para mostrar
+                'imagen'      => $producto->imagen,
+                'imagenUrl'   => $producto->imagen ? Storage::url($producto->imagen) : null,
             ],
         ]);
     }
@@ -77,18 +85,16 @@ class ProductoController extends Controller
             'precio'          => 'required|numeric|min:0',
             'stock'           => 'required|integer|min:0',
             'descripcion'     => 'nullable|string|max:1000',
-            'activo'          => 'boolean',
+            'activo'          => 'sometimes|boolean',
             'imagen'          => 'nullable|image|max:4096',
             'eliminar_imagen' => 'nullable|boolean',
         ]);
 
-        // Eliminar imagen si el usuario lo indicó
         if (!empty($data['eliminar_imagen']) && $producto->imagen) {
             Storage::disk('public')->delete($producto->imagen);
             $producto->imagen = null;
         }
 
-        // Reemplazar imagen si subieron una nueva
         if ($request->hasFile('imagen')) {
             if ($producto->imagen) {
                 Storage::disk('public')->delete($producto->imagen);
@@ -96,9 +102,7 @@ class ProductoController extends Controller
             $producto->imagen = $request->file('imagen')->store('productos', 'public');
         }
 
-        // No sobreescribir con null campos de archivo/flag
         unset($data['imagen'], $data['eliminar_imagen']);
-
         $data['activo'] = (bool) ($data['activo'] ?? false);
 
         $producto->fill($data)->save();
