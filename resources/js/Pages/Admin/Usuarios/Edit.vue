@@ -1,15 +1,16 @@
 <script setup>
-import { Link, useForm } from '@inertiajs/vue3'
+import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue'
+import { Head, Link, useForm } from '@inertiajs/vue3'
 
 const props = defineProps({
-  user:  { type: Object, required: true },
-  role: { type: Array,  default: () => [] },
+  user:  { type: Object, required: true }, // { id, name, email, role_id }
+  roles: { type: Array,  default: () => [] }, // [{id,nombre}]
 })
 
 const form = useForm({
   name: props.user.name,
   email: props.user.email,
-  role_id: props.user.role_id,
+  role_id: props.user.role_id ?? 4, // cliente por si acaso
   password: '',
   password_confirmation: '',
 })
@@ -20,49 +21,49 @@ function submit() {
 </script>
 
 <template>
-  <div class="max-w-2xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-    <div class="mb-6 flex items-center justify-between">
-      <h1 class="text-2xl font-bold">Editar usuario</h1>
-      <Link :href="route('admin.usuarios.index')" class="text-amber-600 hover:underline">Volver</Link>
-    </div>
+  <Head title="Editar usuario" />
+  <AuthenticatedLayout>
+    <template #header>
+      <h2 class="text-2xl font-semibold text-gray-800">Editar usuario</h2>
+    </template>
 
-    <div class="rounded-xl border bg-white p-6">
-      <div class="grid grid-cols-1 gap-4">
+    <div class="max-w-3xl mx-auto p-6">
+      <div class="rounded-2xl border bg-white p-6 shadow-sm space-y-6">
         <div>
-          <label class="block text-sm font-medium mb-1">Nombre</label>
-          <input v-model="form.name" type="text" class="w-full rounded-lg border px-3 py-2" />
-          <p v-if="form.errors.name" class="text-sm text-red-600 mt-1">{{ form.errors.name }}</p>
+          <label class="block text-sm font-medium text-gray-700">Nombre</label>
+          <input v-model="form.name" type="text" class="mt-1 w-full rounded-md border-gray-300" />
+          <div v-if="form.errors.name" class="text-sm text-rose-600 mt-1">{{ form.errors.name }}</div>
         </div>
 
         <div>
-          <label class="block text-sm font-medium mb-1">Email</label>
-          <input v-model="form.email" type="email" class="w-full rounded-lg border px-3 py-2" />
-          <p v-if="form.errors.email" class="text-sm text-red-600 mt-1">{{ form.errors.email }}</p>
+          <label class="block text-sm font-medium text-gray-700">Email</label>
+          <input v-model="form.email" type="email" class="mt-1 w-full rounded-md border-gray-300" />
+          <div v-if="form.errors.email" class="text-sm text-rose-600 mt-1">{{ form.errors.email }}</div>
         </div>
 
         <div>
-          <label class="block text-sm font-medium mb-1">Rol</label>
-          <select v-model.number="form.role_id" class="w-full rounded-lg border px-3 py-2">
-            <option v-for="r in props.roles" :key="r.id" :value="r.id">
+          <label class="block text-sm font-medium text-gray-700">Rol</label>
+          <select v-model.number="form.role_id" class="mt-1 w-full rounded-md border-gray-300">
+            <option v-for="r in roles" :key="r.id" :value="r.id">
               {{ r.nombre }}
             </option>
           </select>
-          <p v-if="form.errors.role_id" class="text-sm text-red-600 mt-1">{{ form.errors.role_id }}</p>
+          <div v-if="form.errors.role_id" class="text-sm text-rose-600 mt-1">{{ form.errors.role_id }}</div>
         </div>
 
-        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div class="grid sm:grid-cols-2 gap-4">
           <div>
-            <label class="block text-sm font-medium mb-1">Nueva contraseña (opcional)</label>
-            <input v-model="form.password" type="password" class="w-full rounded-lg border px-3 py-2" />
-            <p v-if="form.errors.password" class="text-sm text-red-600 mt-1">{{ form.errors.password }}</p>
+            <label class="block text-sm font-medium text-gray-700">Nueva contraseña (opcional)</label>
+            <input v-model="form.password" type="password" class="mt-1 w-full rounded-md border-gray-300" />
+            <div v-if="form.errors.password" class="text-sm text-rose-600 mt-1">{{ form.errors.password }}</div>
           </div>
           <div>
-            <label class="block text-sm font-medium mb-1">Confirmar contraseña</label>
-            <input v-model="form.password_confirmation" type="password" class="w-full rounded-lg border px-3 py-2" />
+            <label class="block text-sm font-medium text-gray-700">Confirmación</label>
+            <input v-model="form.password_confirmation" type="password" class="mt-1 w-full rounded-md border-gray-300" />
           </div>
         </div>
 
-        <div class="mt-4">
+        <div class="flex items-center gap-3">
           <button
             :disabled="form.processing"
             @click="submit"
@@ -70,8 +71,9 @@ function submit() {
           >
             Guardar cambios
           </button>
+          <Link :href="route('admin.usuarios.index')" class="text-gray-600 hover:underline">Cancelar</Link>
         </div>
       </div>
     </div>
-  </div>
+  </AuthenticatedLayout>
 </template>

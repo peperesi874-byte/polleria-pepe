@@ -1,29 +1,22 @@
-import '../css/app.css';
-import './bootstrap';
+import '../css/app.css'
+import './bootstrap'
 
-import { createApp, h } from 'vue';
-import { createInertiaApp } from '@inertiajs/vue3';
-import { resolvePageComponent } from 'laravel-vite-plugin/inertia-helpers';
+import { createApp, h } from 'vue'
+import { createInertiaApp } from '@inertiajs/vue3'
+import { resolvePageComponent } from 'laravel-vite-plugin/inertia-helpers'
+import { ZiggyVue } from 'ziggy-js'   // sin importar Ziggy desde archivo
 
-import { ZiggyVue } from 'ziggy-js';
-import { Ziggy } from './ziggy'; 
-
-const appName = import.meta.env.VITE_APP_NAME || 'Laravel';
+const appName = import.meta.env.VITE_APP_NAME || 'Laravel'
 
 createInertiaApp({
-  title: (title) => (title ? `${title} - ${appName}` : appName),
+  title: (t) => (t ? `${t} - ${appName}` : appName),
   resolve: (name) =>
     resolvePageComponent(`./Pages/${name}.vue`, import.meta.glob('./Pages/**/*.vue')),
   setup({ el, App, props, plugin }) {
-    const app = createApp({ render: () => h(App, props) })
+    return createApp({ render: () => h(App, props) })
       .use(plugin)
-      .use(ZiggyVue, Ziggy) // 👈 necesario para usar route() en Vue
-      .mount(el);
-
-    // Opcional: ver Ziggy en consola
-    // window.Ziggy = Ziggy;
-
-    return app;
+      .use(ZiggyVue) // usa el Ziggy inyectado por @routes
+      .mount(el)
   },
   progress: { color: '#4B5563' },
-});
+})

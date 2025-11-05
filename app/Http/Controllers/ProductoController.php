@@ -3,36 +3,46 @@
 namespace App\Http\Controllers;
 
 use App\Models\Producto;
+use App\Models\Inventario;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Illuminate\Support\Facades\Redirect;
 use Illuminate\Support\Facades\Storage;
+use App\Services\BitacoraService;
 
 class ProductoController extends Controller
 {
-   public function index()
-{
-    $q = request('q', '');
+    public function index()
+    {
+        $q = request('q', '');
 
-    $productos = Producto::orderBy('id', 'desc')
-        ->when($q !== '', fn($w) => $w->where('nombre', 'like', "%{$q}%"))
-        ->paginate(12)
-        ->through(fn ($p) => [
-            'id'        => $p->id,
-            'nombre'    => $p->nombre,
-            'descripcion'=> $p->descripcion,
-            'precio'    => (float) $p->precio,
-            'stock'     => (int) $p->stock,
-            'activo'    => (bool) $p->activo,
-            'imagen'    => $p->imagen,                                   // ruta relativa
-            'imagenUrl' => $p->imagen ? \Storage::url($p->imagen) : null, // URL pública
+        $productos = Producto::query()
+            ->when($q !== '', fn($w) => $w->where('nombre', 'like', "%{$q}%"))
+            ->with(['inventario:id,producto_id,stock_actual,stock_minimo'])
+            ->orderByDesc('id')
+            ->paginate(12)
+            ->withQueryString()
+            ->through(function ($p) {
+                $inv = $p->inventario;
+
+                return [
+                    'id'           => $p->id,
+                    'nombre'       => $p->nombre,
+                    'descripcion'  => $p->descripcion,
+                    'precio'       => (float) $p->precio,
+                    'stock'        => (int) ($inv->stock_actual ?? $p->stock ?? 0),
+                    'stock_minimo' => (int) ($inv->stock_minimo ?? 0),
+                    'activo'       => (bool) $p->activo,
+                    'imagen'       => $p->imagen,
+                    'imagenUrl'    => $p->imagen ? Storage::url($p->imagen) : null,
+                ];
+            });
+
+        return Inertia::render('Productos/Index', [
+            'productos' => $productos,
+            'filters'   => ['q' => $q],
         ]);
-
-    return \Inertia\Inertia::render('Productos/Index', [
-        'productos' => $productos,
-        'filters'   => ['q' => $q], // 👈 agregado
-    ]);
-}
+    }
 
     public function create()
     {
@@ -50,13 +60,33 @@ class ProductoController extends Controller
             'imagen'      => 'nullable|image|max:2048',
         ]);
 
+        $rutaImagen = null;
         if ($r->hasFile('imagen')) {
-            $data['imagen'] = $r->file('imagen')->store('productos', 'public');
+            $rutaImagen = $r->file('imagen')->store('productos', 'public');
         }
 
-        $data['activo'] = (bool) ($data['activo'] ?? false);
+        $producto = new Producto();
+        $producto->nombre       = $data['nombre'];
+        $producto->descripcion  = $data['descripcion'] ?? null;
+        $producto->precio       = (float) $data['precio'];
+        $producto->stock        = (int)   $data['stock'];
+        $producto->activo       = (bool)  ($data['activo'] ?? false);
+        $producto->imagen       = $rutaImagen;
+        $producto->save();
 
-        Producto::create($data);
+        // Sync inventario inicial
+        Inventario::updateOrCreate(
+            ['producto_id' => $producto->id],
+            ['stock_actual' => (int) $producto->stock, 'stock_minimo' => 0]
+        );
+
+        // Bitácora
+        BitacoraService::add('productos', 'crear', $producto->id, [
+            'precio'       => (float) $producto->precio,
+            'stock'        => (int) $producto->stock,
+            'stock_minimo' => 0,
+            'activo'       => (bool) $producto->activo,
+        ]);
 
         return redirect()->route('productos.index')
             ->with('success', '✅ Producto creado correctamente.');
@@ -102,10 +132,27 @@ class ProductoController extends Controller
             $producto->imagen = $request->file('imagen')->store('productos', 'public');
         }
 
-        unset($data['imagen'], $data['eliminar_imagen']);
-        $data['activo'] = (bool) ($data['activo'] ?? false);
+        $producto->nombre       = $data['nombre'];
+        $producto->precio       = (float) $data['precio'];
+        $producto->stock        = (int)   $data['stock'];
+        $producto->descripcion  = $data['descripcion'] ?? null;
+        $producto->activo       = (bool)  ($data['activo'] ?? false);
+        $producto->save();
 
-        $producto->fill($data)->save();
+        // Sync inventario (respetando mínimo existente)
+        $stockMinimo = optional($producto->inventario)->stock_minimo ?? 0;
+        Inventario::updateOrCreate(
+            ['producto_id' => $producto->id],
+            ['stock_actual' => (int) $producto->stock, 'stock_minimo' => $stockMinimo]
+        );
+
+        // Bitácora
+        BitacoraService::add('productos', 'actualizar', $producto->id, [
+            'precio'       => (float) $producto->precio,
+            'stock'        => (int) $producto->stock,
+            'stock_minimo' => (int) $stockMinimo,
+            'activo'       => (bool) $producto->activo,
+        ]);
 
         return Redirect::route('productos.index')
             ->with('success', '✅ Producto actualizado correctamente.');
@@ -113,6 +160,12 @@ class ProductoController extends Controller
 
     public function destroy(Producto $producto)
     {
+        // Bitácora antes de borrar
+        BitacoraService::add('productos', 'eliminar', $producto->id, [
+            'nombre' => $producto->nombre,
+            'precio' => (float) $producto->precio,
+        ]);
+
         if ($producto->imagen) {
             Storage::disk('public')->delete($producto->imagen);
         }
@@ -120,6 +173,6 @@ class ProductoController extends Controller
         $producto->delete();
 
         return Redirect::route('productos.index')
-            ->with('success', '🗑️ Producto eliminado.');
+            ->with('success', '🗑 Producto eliminado.');
     }
 }
