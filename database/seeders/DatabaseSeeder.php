@@ -12,6 +12,8 @@ class DatabaseSeeder extends Seeder
             RoleSeeder::class,
             AdminSeeder::class,
             ProductoSeeder::class,
+    NotificacionesSeeder::class,
+
             // si luego agregas: PedidoSeeder::class, etc.
         ]);
     }

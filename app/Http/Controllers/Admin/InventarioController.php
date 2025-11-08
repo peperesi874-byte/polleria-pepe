@@ -14,6 +14,7 @@ use Illuminate\Support\Facades\Response;
 use Inertia\Inertia;
 use Inertia\Response as InertiaResponse;
 use Symfony\Component\HttpFoundation\StreamedResponse;
+use App\Services\Notify;
 
 class InventarioController extends Controller
 {
@@ -54,7 +55,6 @@ class InventarioController extends Controller
 
     /**
      * GET admin/inventario/export/pdf
-     * Genera PDF del inventario (respeta filtros del index).
      */
     public function exportInventarioPDF(Request $request)
     {
@@ -85,12 +85,20 @@ class InventarioController extends Controller
             'rows'   => $rows,
         ];
 
-        // Bitácora: exportación PDF
         BitacoraService::add('reportes', 'exportar_pdf', null, [
             'reporte' => 'inventario',
             'filtro'  => $filtro,
             'q'       => $q,
         ]);
+
+        // Notificación
+        Notify::push(
+            'Reporte de inventario (PDF)',
+            'Se exportó el reporte de inventario en PDF.',
+            'reporte_exportado',
+            [],
+            'info'
+        );
 
         $pdf = Pdf::loadView('pdf.inventario', $data)->setPaper('letter', 'portrait');
         return $pdf->stream('inventario_' . now()->format('Ymd_His') . '.pdf');
@@ -112,20 +120,24 @@ class InventarioController extends Controller
                 ['stock_actual' => 0, 'stock_minimo' => 0]
             );
 
+            $p      = Producto::find($inv->producto_id);
+            $nombre = $p?->nombre ?? ('ID ' . $inv->producto_id);
+
             $anterior = (int) $inv->stock_actual;
+            $cant     = (int) $data['cantidad'];
 
             if ($data['tipo'] === 'entrada') {
-                $nuevo = $anterior + (int) $data['cantidad'];
-                $delta = (int) $data['cantidad'];
+                $nuevo = $anterior + $cant;
+                $delta =  $cant;
             } elseif ($data['tipo'] === 'salida') {
-                if ($anterior < (int) $data['cantidad']) {
+                if ($anterior < $cant) {
                     return back()->with('error', 'No hay stock suficiente para la salida.');
                 }
-                $nuevo = $anterior - (int) $data['cantidad'];
-                $delta = -(int) $data['cantidad'];
+                $nuevo = $anterior - $cant;
+                $delta = -$cant;
             } else {
                 // ajuste = nuevo stock absoluto
-                $nuevo = max(0, (int) $data['cantidad']);
+                $nuevo = max(0, $cant);
                 $delta = $nuevo - $anterior;
             }
 
@@ -135,19 +147,83 @@ class InventarioController extends Controller
                 'producto_id'      => $inv->producto_id,
                 'user_id'          => auth()->id(),
                 'tipo'             => $data['tipo'],
-                'cantidad'         => (int) $data['cantidad'],
+                'cantidad'         => $cant,
                 'delta'            => $delta,
                 'motivo'           => $data['motivo'] ?? null,
                 'stock_resultante' => $nuevo,
             ]);
 
-            // Bitácora
             BitacoraService::add('inventario', 'movimiento', $inv->producto_id, [
                 'tipo'             => $data['tipo'],
-                'cantidad'         => (int) $data['cantidad'],
+                'cantidad'         => $cant,
                 'delta'            => $delta,
                 'stock_resultante' => $nuevo,
             ]);
+
+            // Notificación del movimiento
+            $titulo = [
+                'entrada' => 'Entrada de inventario',
+                'salida'  => 'Salida de inventario',
+                'ajuste'  => 'Ajuste de inventario',
+            ][$data['tipo']] ?? 'Movimiento de inventario';
+
+            $mensaje = "{$titulo} en «{$nombre}»: {$cant} pzs "
+                     . ($data['motivo'] ? "(motivo: {$data['motivo']}) " : "")
+                     . "→ stock ahora {$nuevo} pzs (mínimo {$inv->stock_minimo}).";
+
+            $meta = [
+                'accion'           => 'inventario_movimiento',
+                'producto_id'      => (int) $inv->producto_id,
+                'producto'         => $nombre,
+                'tipo'             => $data['tipo'],
+                'cantidad'         => (int) $cant,
+                'delta'            => (int) $delta,
+                'stock_resultante' => (int) $nuevo,
+                'motivo'           => $data['motivo'] ?? null,
+            ];
+
+            Notify::push(
+                $titulo,
+                $mensaje,
+                "inventario_{$data['tipo']}",
+                $meta,
+                $data['tipo'] === 'salida' ? 'warning' : 'info',
+                $inv->producto_id
+            );
+
+            // Estado respecto al mínimo (sin okStock/lowStock)
+            $min = (int) ($inv->stock_minimo ?? 0);
+            if ($min > 0 && $nuevo <= $min) {
+                Notify::push(
+                    'Inventario bajo',
+                    "«{$nombre}» con stock bajo: {$nuevo} pzs (mínimo {$min}).",
+                    'inventario_bajo',
+                    [
+                        'accion'       => 'inventario_bajo',
+                        'producto_id'  => (int) $inv->producto_id,
+                        'producto'     => $nombre,
+                        'stock'        => (int) $nuevo,
+                        'stock_minimo' => (int) $min,
+                    ],
+                    'danger',
+                    $inv->producto_id
+                );
+            } elseif ($min > 0 && $anterior <= $min && $nuevo > $min) {
+                Notify::push(
+                    'Inventario recuperado',
+                    "«{$nombre}» se recuperó por encima del mínimo: {$nuevo} pzs (mínimo {$min}).",
+                    'inventario_ok',
+                    [
+                        'accion'       => 'inventario_ok',
+                        'producto_id'  => (int) $inv->producto_id,
+                        'producto'     => $nombre,
+                        'stock'        => (int) $nuevo,
+                        'stock_minimo' => (int) $min,
+                    ],
+                    'success',
+                    $inv->producto_id
+                );
+            }
 
             return back()->with('success', 'Movimiento registrado.');
         });
@@ -167,10 +243,46 @@ class InventarioController extends Controller
 
         $inv->update(['stock_minimo' => (int) $data['stock_minimo']]);
 
-        // Bitácora
         BitacoraService::add('inventario', 'actualizar_minimo', $producto->id, [
             'stock_minimo' => (int) $data['stock_minimo'],
         ]);
+
+        // Notificar situación contra el nuevo mínimo (sin okStock/lowStock)
+        $min   = (int) $inv->stock_minimo;
+        $stock = (int) $inv->stock_actual;
+        $nombre = $producto->nombre ?? ('ID ' . $producto->id);
+
+        if ($min > 0 && $stock <= $min) {
+            Notify::push(
+                'Inventario bajo',
+                "«{$nombre}» con stock bajo: {$stock} pzs (mínimo {$min}).",
+                'inventario_bajo',
+                [
+                    'accion'       => 'inventario_bajo',
+                    'producto_id'  => (int) $producto->id,
+                    'producto'     => $nombre,
+                    'stock'        => (int) $stock,
+                    'stock_minimo' => (int) $min,
+                ],
+                'danger',
+                $producto->id
+            );
+        } elseif ($min > 0 && $stock > $min) {
+            Notify::push(
+                'Inventario en nivel correcto',
+                "«{$nombre}» se encuentra por encima del mínimo: {$stock} pzs (mínimo {$min}).",
+                'inventario_ok',
+                [
+                    'accion'       => 'inventario_ok',
+                    'producto_id'  => (int) $producto->id,
+                    'producto'     => $nombre,
+                    'stock'        => (int) $stock,
+                    'stock_minimo' => (int) $min,
+                ],
+                'success',
+                $producto->id
+            );
+        }
 
         return back()->with('success', 'Stock mínimo actualizado.');
     }
@@ -268,7 +380,6 @@ class InventarioController extends Controller
             ->orderByDesc('inventario_movimientos.id')
             ->get();
 
-        // Bitácora
         BitacoraService::add('reportes', 'exportar_csv', null, [
             'reporte'      => 'historial_inventario',
             'producto_id'  => $productoId,
@@ -277,6 +388,14 @@ class InventarioController extends Controller
             'desde'        => $desde,
             'hasta'        => $hasta,
         ]);
+
+        Notify::push(
+            'Historial de inventario (CSV)',
+            'Se exportó el historial de movimientos en CSV.',
+            'reporte_exportado',
+            [],
+            'info'
+        );
 
         $agrupado = $rows->groupBy('producto_id');
 
@@ -319,7 +438,6 @@ class InventarioController extends Controller
 
     /**
      * GET admin/inventario/export/csv
-     * Exporta inventario (stock actual y mínimo).
      */
     public function exportInventarioCSV(): StreamedResponse
     {
@@ -336,10 +454,17 @@ class InventarioController extends Controller
             ->orderBy('productos.nombre')
             ->get();
 
-        // Bitácora
         BitacoraService::add('reportes', 'exportar_csv', null, [
             'reporte' => 'inventario',
         ]);
+
+        Notify::push(
+            'Inventario (CSV)',
+            'Se exportó el inventario completo en CSV.',
+            'reporte_exportado',
+            [],
+            'info'
+        );
 
         $filename = 'inventario_completo_' . now()->format('Ymd_His') . '.csv';
         $headers = [

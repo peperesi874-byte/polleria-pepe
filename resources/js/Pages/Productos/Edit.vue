@@ -1,147 +1,172 @@
 <script setup>
-import { Link, useForm } from '@inertiajs/vue3'
+import { Link, useForm, router } from '@inertiajs/vue3'
 import { ref, toRef } from 'vue'
 
+/* ========= Props ========= */
 const props = defineProps({
-  producto: {
-    type: Object,
-    required: true,
-  },
+  producto: { type: Object, required: true },
 })
 
-// Usar `producto` directo en el template
 const producto = toRef(props, 'producto')
 
+/* ========= Helpers ========= */
+/** Devuelve una URL segura a partir de una ruta de Ziggy; si no existe, usa fallback */
+function routeSafe(name, params = {}, absolute = true, fallback = '/productos') {
+  try {
+    if (typeof route !== 'undefined' && route().has(name)) {
+      return route(name, params, absolute)
+    }
+  } catch {}
+  return fallback
+}
+
+/** Navega SIEMPRE al listado de productos (no usa history.back) */
+function goToProductos() {
+  const url = routeSafe('productos.index', {}, true, '/productos')
+  // Usamos Inertia si es posible para mantener layout/estado; si no, redirigimos.
+  try {
+    router.get(url, {}, { replace: true })
+  } catch {
+    window.location.href = url
+  }
+}
+
+/* ========= Form ========= */
 const form = useForm({
   nombre:          producto.value.nombre ?? '',
   descripcion:     producto.value.descripcion ?? '',
   precio:          Number(producto.value.precio ?? 0),
   stock:           Number(producto.value.stock ?? 0),
   activo:          !!producto.value.activo,
-  imagen:          null,           // archivo nuevo (opcional)
-  eliminar_imagen: false,          // para borrar la imagen actual sin subir otra
+  imagen:          null,          // archivo nuevo
+  eliminar_imagen: false,         // marcar para borrar imagen actual
 })
 
-/* Preview de la nueva imagen seleccionada */
+/* Preview nueva imagen */
 const preview = ref(null)
 const onFile = (e) => {
   const file = e.target.files?.[0] ?? null
   form.imagen = file
   preview.value = file ? URL.createObjectURL(file) : null
+  if (file) form.eliminar_imagen = false
+}
+const clearNewFile = () => {
+  form.imagen = null
+  preview.value = null
 }
 
+/* Guardar: POST + _method=put para multipart/form-data */
 const guardar = () => {
-  // 1) Añadimos _method=put al payload
-  form.transform((data) => ({
-    ...data,
-    _method: 'put',
-  }))
-  // 2) Enviamos como POST (no put) para mantener multipart/form-data
-  form.post(route('productos.update', producto.value.id), {
+  form.transform((data) => ({ ...data, _method: 'put' }))
+  form.post(routeSafe('productos.update', producto.value.id, true, `/productos/${producto.value.id}`), {
     forceFormData: true,
     preserveScroll: true,
     onStart:  () => form.clearErrors(),
-    onFinish: () => form.transform(d => d), // limpia el transform
+    onFinish: () => form.transform(d => d),
   })
 }
 </script>
 
 <template>
   <div class="max-w-3xl mx-auto px-6 py-8">
-    <div class="flex items-center justify-between mb-6">
-      <h1 class="text-3xl font-semibold text-indigo-800">✏️ Editar producto</h1>
-      <Link :href="route('productos.index')" class="text-indigo-600 hover:underline">← Volver</Link>
+    <!-- Header -->
+    <div class="mb-6 flex items-center justify-between">
+      <div class="flex items-center gap-3">
+        <span class="text-2xl">✏️</span>
+        <h1 class="text-3xl font-bold text-gray-900">Editar producto</h1>
+      </div>
+
+      <!-- VOLVER: SIEMPRE al listado -->
+      <button
+        type="button"
+        @click="goToProductos"
+        class="rounded-lg border border-indigo-200 bg-white px-3 py-1.5 text-indigo-700 hover:bg-indigo-50"
+        title="Volver a Productos"
+      >
+        ← Volver
+      </button>
     </div>
 
+    <!-- Card -->
     <form
       @submit.prevent="guardar"
       enctype="multipart/form-data"
-      class="space-y-4 bg-white border rounded-xl p-6"
+      class="space-y-6 rounded-2xl border border-gray-200 bg-white p-6 shadow-sm"
     >
       <!-- Nombre -->
       <div>
-        <label class="text-sm text-gray-600 mb-1 block" for="nombre">Nombre</label>
+        <label class="mb-1 block text-sm text-gray-600" for="nombre">Nombre</label>
         <input
           id="nombre"
           v-model="form.nombre"
           type="text"
-          class="w-full rounded-md border-gray-300 focus:ring-indigo-300"
+          class="w-full rounded-lg border border-gray-300 px-3 py-2 outline-none ring-indigo-200 focus:border-indigo-300 focus:ring-2"
         />
-        <p v-if="form.errors.nombre" class="text-sm text-red-600 mt-1">
+        <p v-if="form.errors.nombre" class="mt-1 text-sm text-rose-600">
           {{ form.errors.nombre }}
         </p>
       </div>
 
       <!-- Precio / Stock / Activo -->
-      <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div class="grid grid-cols-1 gap-4 md:grid-cols-3">
         <div>
-          <label class="text-sm text-gray-600 mb-1 block" for="precio">Precio</label>
+          <label class="mb-1 block text-sm text-gray-600" for="precio">Precio</label>
           <input
             id="precio"
             v-model.number="form.precio"
             type="number"
-            min="0"
-            step="0.01"
-            class="w-full rounded-md border-gray-300 focus:ring-indigo-300"
+            min="0" step="0.01"
+            class="w-full rounded-lg border border-gray-300 px-3 py-2 outline-none ring-indigo-200 focus:border-indigo-300 focus:ring-2"
           />
-          <p v-if="form.errors.precio" class="text-sm text-red-600 mt-1">
-            {{ form.errors.precio }}
-          </p>
+          <p v-if="form.errors.precio" class="mt-1 text-sm text-rose-600">{{ form.errors.precio }}</p>
         </div>
+
         <div>
-          <label class="text-sm text-gray-600 mb-1 block" for="stock">Stock</label>
+          <label class="mb-1 block text-sm text-gray-600" for="stock">Stock</label>
           <input
             id="stock"
             v-model.number="form.stock"
-            type="number"
-            min="0"
-            class="w-full rounded-md border-gray-300 focus:ring-indigo-300"
+            type="number" min="0"
+            class="w-full rounded-lg border border-gray-300 px-3 py-2 outline-none ring-indigo-200 focus:border-indigo-300 focus:ring-2"
           />
-          <p v-if="form.errors.stock" class="text-sm text-red-600 mt-1">
-            {{ form.errors.stock }}
-          </p>
+          <p v-if="form.errors.stock" class="mt-1 text-sm text-rose-600">{{ form.errors.stock }}</p>
         </div>
+
         <div>
-          <label class="text-sm text-gray-600 mb-1 block" for="activo">Activo</label>
+          <label class="mb-1 block text-sm text-gray-600" for="activo">Activo</label>
           <select
             id="activo"
             v-model="form.activo"
-            class="w-full rounded-md border-gray-300 focus:ring-indigo-300"
+            class="w-full rounded-lg border border-gray-300 px-3 py-2 outline-none ring-indigo-200 focus:border-indigo-300 focus:ring-2"
           >
             <option :value="true">Sí</option>
             <option :value="false">No</option>
           </select>
-          <p v-if="form.errors.activo" class="text-sm text-red-600 mt-1">
-            {{ form.errors.activo }}
-          </p>
+          <p v-if="form.errors.activo" class="mt-1 text-sm text-rose-600">{{ form.errors.activo }}</p>
         </div>
       </div>
 
       <!-- Descripción -->
       <div>
-        <label class="text-sm text-gray-600 mb-1 block" for="descripcion">Descripción</label>
+        <label class="mb-1 block text-sm text-gray-600" for="descripcion">Descripción</label>
         <textarea
-          id="descripcion"
-          v-model="form.descripcion"
-          rows="3"
-          class="w-full rounded-md border-gray-300 focus:ring-indigo-300"
+          id="descripcion" v-model="form.descripcion" rows="3"
+          class="w-full rounded-lg border border-gray-300 px-3 py-2 outline-none ring-indigo-200 focus:border-indigo-300 focus:ring-2"
         />
-        <p v-if="form.errors.descripcion" class="text-sm text-red-600 mt-1">
-          {{ form.errors.descripcion }}
-        </p>
+        <p v-if="form.errors.descripcion" class="mt-1 text-sm text-rose-600">{{ form.errors.descripcion }}</p>
       </div>
 
       <!-- Imagen -->
       <div>
-        <label class="text-sm text-gray-600 mb-1 block">Imagen</label>
+        <label class="mb-2 block text-sm text-gray-600">Imagen</label>
 
-        <div class="flex items-center gap-4">
-          <!-- Actual (si no hay preview nueva) -->
+        <div class="flex flex-wrap items-center gap-4">
+          <!-- Actual -->
           <img
             v-if="!preview && producto?.imagenUrl"
             :src="producto.imagenUrl"
             alt="Imagen actual"
-            class="h-16 w-16 object-cover rounded border"
+            class="h-16 w-16 rounded-lg border border-gray-200 object-cover"
           />
           <span v-else-if="!preview" class="text-xs text-gray-400">Sin imagen</span>
 
@@ -150,33 +175,48 @@ const guardar = () => {
             v-if="preview"
             :src="preview"
             alt="Nueva imagen"
-            class="h-16 w-16 object-cover rounded border"
+            class="h-16 w-16 rounded-lg border border-gray-200 object-cover"
           />
         </div>
 
-        <input type="file" accept="image/*" @change="onFile" class="mt-2" />
-        <p v-if="form.errors.imagen" class="text-sm text-red-600 mt-1">
-          {{ form.errors.imagen }}
-        </p>
+        <div class="mt-2 flex items-center gap-2">
+          <input type="file" accept="image/*" @change="onFile" />
+          <button
+            v-if="preview"
+            type="button"
+            @click="clearNewFile"
+            class="rounded-md border border-gray-300 px-2 py-1 text-sm text-gray-700 hover:bg-gray-50"
+          >
+            Quitar nueva imagen
+          </button>
+        </div>
 
-        <!-- Eliminar imagen actual si no subirás otra -->
-        <label
-          class="flex items-center gap-2 mt-2 select-none"
-          v-if="producto?.imagenUrl && !preview"
-        >
+        <p v-if="form.errors.imagen" class="mt-1 text-sm text-rose-600">{{ form.errors.imagen }}</p>
+
+        <!-- Eliminar actual (solo si no hay nueva) -->
+        <label v-if="producto?.imagenUrl && !preview" class="mt-2 flex select-none items-center gap-2">
           <input type="checkbox" v-model="form.eliminar_imagen" />
           <span class="text-sm text-gray-600">Eliminar imagen actual</span>
         </label>
       </div>
 
+      <!-- Acciones -->
       <div class="flex justify-end gap-2 pt-2">
-        <Link :href="route('productos.index')" class="px-4 py-2 rounded-md border">Cancelar</Link>
+        <!-- Cancelar también te manda al listado fijo -->
+        <button
+          type="button"
+          @click="goToProductos"
+          class="rounded-md border px-4 py-2 text-gray-700 hover:bg-gray-50"
+        >
+          Cancelar
+        </button>
+
         <button
           type="submit"
           :disabled="form.processing"
-          class="bg-indigo-600 text-white px-5 py-2 rounded-md hover:bg-indigo-700 transition"
+          class="rounded-md bg-indigo-600 px-5 py-2 font-medium text-white transition hover:bg-indigo-700 disabled:opacity-60"
         >
-          {{ form.processing ? 'Guardando...' : 'Guardar cambios' }}
+          {{ form.processing ? 'Guardando…' : 'Guardar cambios' }}
         </button>
       </div>
     </form>

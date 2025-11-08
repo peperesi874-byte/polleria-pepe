@@ -18,23 +18,30 @@ class Kernel extends HttpKernel
             \App\Http\Middleware\EncryptCookies::class,
             \Illuminate\Cookie\Middleware\AddQueuedCookiesToResponse::class,
             \Illuminate\Session\Middleware\StartSession::class,
+
+            // Opcional pero recomendado (preload de assets)
+            \Illuminate\Http\Middleware\AddLinkHeadersForPreloadedAssets::class,
+
+            // ✅ NECESARIO para compartir props ($page.props.flash, auth, etc.)
+            \App\Http\Middleware\HandleInertiaRequests::class,
+
             \Illuminate\View\Middleware\ShareErrorsFromSession::class,
             \App\Http\Middleware\VerifyCsrfToken::class,
             \Illuminate\Routing\Middleware\SubstituteBindings::class,
         ],
+
         'api' => [
             'throttle:api',
             \Illuminate\Routing\Middleware\SubstituteBindings::class,
         ],
     ];
 
-    // 👇 ESTA es la que debe existir en tu Laravel (12)
     protected $middlewareAliases = [
         'auth'          => \App\Http\Middleware\Authenticate::class,
         'guest'         => \App\Http\Middleware\RedirectIfAuthenticated::class,
         'verified'      => \Illuminate\Auth\Middleware\EnsureEmailIsVerified::class,
 
-        // 👇 Tus alias personalizados
+        // Tus middlewares personalizados
         'role'          => \App\Http\Middleware\CheckRole::class,
         'redirect.role' => \App\Http\Middleware\RedirectByRole::class,
     ];

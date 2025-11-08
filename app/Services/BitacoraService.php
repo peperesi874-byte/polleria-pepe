@@ -15,12 +15,11 @@ class BitacoraService
                 'modulo'  => $modulo,
                 'accion'  => $accion,
                 'ref_id'  => $refId,
-                'meta'    => $meta,
+                'meta'    => $meta ?: null,
                 'ip'      => $req?->ip(),
                 'ua'      => $req?->userAgent(),
             ]);
         } catch (\Throwable $e) {
-            // en caso de error no se rompe la ejecución principal
             \Log::error('Bitácora error: ' . $e->getMessage());
         }
     }

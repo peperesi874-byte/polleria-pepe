@@ -10,6 +10,14 @@ use App\Services\BitacoraService;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 
+// Inventario automático por PIEZAS
+use App\Models\Inventario;
+use App\Models\InventarioMovimiento;
+use Illuminate\Support\Facades\DB;
+
+// Notificaciones in-app
+use App\Services\Notify;
+
 class PedidoController extends Controller
 {
     /** Listado con filtros */
@@ -109,7 +117,7 @@ class PedidoController extends Controller
         ]);
     }
 
-    /** Cambiar estado */
+    /** Cambiar estado (con inventario automático por piezas + notificaciones) */
     public function setEstado(Request $request, Pedido $pedido)
     {
         $estados = ['pendiente', 'preparando', 'listo', 'en_camino', 'entregado'];
@@ -123,21 +131,93 @@ class PedidoController extends Controller
         }
 
         $anterior = $pedido->estado;
-        $pedido->update(['estado' => $data['estado']]);
+        $nuevo    = $data['estado'];
 
-        PedidoLog::create([
-            'pedido_id' => $pedido->id,
-            'user_id'   => auth()->id(),
-            'accion'    => 'estado_cambiado',
-            'de'        => $anterior,
-            'a'         => $data['estado'],
-        ]);
+        // Pre-chequeo de stock si vamos a descontar
+        if (in_array($nuevo, ['listo', 'entregado'])) {
+            $pedido->loadMissing('items.producto');
+            foreach ($pedido->items as $it) {
+                $inv = Inventario::firstOrCreate(
+                    ['producto_id' => $it->producto_id],
+                    ['stock_actual' => 0, 'stock_minimo' => 0]
+                );
+                if ($inv->stock_actual < (int) $it->cantidad) {
+                    $nombre = $it->producto?->nombre ?? ('ID '.$it->producto_id);
+                    return back()->with('error', "Stock insuficiente para «{$nombre}». Requeridas: {$it->cantidad}, disponibles: {$inv->stock_actual}.");
+                }
+            }
+        }
 
-        // Bitácora
-        BitacoraService::add('pedidos', 'estado_cambiado', $pedido->id, [
-            'de' => $anterior,
-            'a'  => $data['estado'],
-        ]);
+        DB::transaction(function () use ($pedido, $anterior, $nuevo) {
+            // a) Cambiar estado
+            $pedido->update(['estado' => $nuevo]);
+
+            // b) Descuento por piezas (idempotente)
+            if (in_array($nuevo, ['listo', 'entregado'])) {
+                $pedido->loadMissing('items.producto');
+                foreach ($pedido->items as $it) {
+                    $prodId = (int) $it->producto_id;
+                    $pzs    = (int) $it->cantidad;
+
+                    $yaAplicado = InventarioMovimiento::where('producto_id', $prodId)
+                        ->where('tipo', 'salida')
+                        ->where('motivo', 'pedido:' . $pedido->id)
+                        ->exists();
+                    if ($yaAplicado) continue;
+
+                    $inv = Inventario::firstOrCreate(
+                        ['producto_id' => $prodId],
+                        ['stock_actual' => 0, 'stock_minimo' => 0]
+                    );
+
+                    $nuevoStock = (int) $inv->stock_actual - $pzs;
+                    $inv->update(['stock_actual' => $nuevoStock]);
+
+                    InventarioMovimiento::create([
+                        'producto_id'      => $prodId,
+                        'user_id'          => auth()->id(),
+                        'tipo'             => 'salida',
+                        'cantidad'         => $pzs,
+                        'delta'            => -$pzs,
+                        'motivo'           => 'pedido:' . $pedido->id,
+                        'stock_resultante' => $nuevoStock,
+                    ]);
+
+                    // Si quedó bajo mínimo, notificar
+                    if ($nuevoStock <= (int) ($inv->stock_minimo ?? 0)) {
+                        $nombre = $it->producto?->nombre ?? ('ID '.$prodId);
+                        try {
+                            Notify::lowStock($prodId, $nombre, $nuevoStock, (int) ($inv->stock_minimo ?? 0));
+                        } catch (\Throwable $e) {
+                            \Log::warning('Notify::lowStock error: '.$e->getMessage());
+                        }
+                    }
+                }
+            }
+
+            // c) Log del pedido
+            PedidoLog::create([
+                'pedido_id' => $pedido->id,
+                'user_id'   => auth()->id(),
+                'accion'    => 'estado_cambiado',
+                'de'        => $anterior,
+                'a'         => $nuevo,
+            ]);
+
+            // d) Bitácora
+            BitacoraService::add('pedidos', 'estado_cambiado', $pedido->id, [
+                'de'     => $anterior,
+                'a'      => $nuevo,
+                'unidad' => 'piezas',
+            ]);
+
+            // e) Notificación in-app (firma correcta)
+            try {
+                Notify::pedidoEstado($pedido, $anterior, $nuevo);
+            } catch (\Throwable $e) {
+                \Log::warning('Notify::pedidoEstado error: '.$e->getMessage());
+            }
+        });
 
         return back()->with('success', 'Estado actualizado.');
     }
@@ -148,7 +228,7 @@ class PedidoController extends Controller
         return $this->setEstado($request, $pedido);
     }
 
-    /** Cancelar */
+    /** Cancelar (con reposición automática por piezas + notificación) */
     public function cancelar(Request $request, Pedido $pedido)
     {
         $data = $request->validate([
@@ -161,26 +241,71 @@ class PedidoController extends Controller
 
         $anterior = $pedido->estado;
 
-        $pedido->update([
-            'estado'              => 'cancelado',
-            'motivo_cancelacion'  => $data['motivo'],
-        ]);
+        DB::transaction(function () use ($pedido, $data, $anterior) {
+            // a) Cambiar estado → cancelado
+            $pedido->update([
+                'estado'             => 'cancelado',
+                'motivo_cancelacion' => $data['motivo'],
+            ]);
 
-        PedidoLog::create([
-            'pedido_id' => $pedido->id,
-            'user_id'   => auth()->id(),
-            'accion'    => 'cancelado',
-            'de'        => $anterior,
-            'a'         => 'cancelado',
-            'motivo'    => $data['motivo'],
-        ]);
+            // b) Reponer por piezas si previamente se descontó por este pedido (idempotente)
+            $pedido->loadMissing('items');
+            foreach ($pedido->items as $it) {
+                $prodId = (int) $it->producto_id;
+                $pzs    = (int) $it->cantidad;
 
-        // Bitácora
-        BitacoraService::add('pedidos', 'cancelado', $pedido->id, [
-            'de'     => $anterior,
-            'a'      => 'cancelado',
-            'motivo' => $data['motivo'],
-        ]);
+                $seDescontoAntes = InventarioMovimiento::where('producto_id', $prodId)
+                    ->where('tipo', 'salida')
+                    ->where('motivo', 'pedido:' . $pedido->id)
+                    ->exists();
+
+                $yaRepuesto = InventarioMovimiento::where('producto_id', $prodId)
+                    ->where('tipo', 'entrada')
+                    ->where('motivo', 'cancelacion:' . $pedido->id)
+                    ->exists();
+
+                if ($seDescontoAntes && !$yaRepuesto) {
+                    $inv        = Inventario::firstOrCreate(['producto_id' => $prodId], ['stock_actual' => 0, 'stock_minimo' => 0]);
+                    $nuevoStock = (int) $inv->stock_actual + $pzs;
+                    $inv->update(['stock_actual' => $nuevoStock]);
+
+                    InventarioMovimiento::create([
+                        'producto_id'      => $prodId,
+                        'user_id'          => auth()->id(),
+                        'tipo'             => 'entrada',
+                        'cantidad'         => $pzs,
+                        'delta'            =>  $pzs,
+                        'motivo'           => 'cancelacion:' . $pedido->id,
+                        'stock_resultante' => $nuevoStock,
+                    ]);
+                }
+            }
+
+            // c) Log del pedido
+            PedidoLog::create([
+                'pedido_id' => $pedido->id,
+                'user_id'   => auth()->id(),
+                'accion'    => 'cancelado',
+                'de'        => $anterior,
+                'a'         => 'cancelado',
+                'motivo'    => $data['motivo'],
+            ]);
+
+            // d) Bitácora
+            BitacoraService::add('pedidos', 'cancelado', $pedido->id, [
+                'de'     => $anterior,
+                'a'      => 'cancelado',
+                'motivo' => $data['motivo'],
+                'unidad' => 'piezas',
+            ]);
+
+            // e) Notificación in-app de cancelación (firma correcta)
+            try {
+                Notify::pedidoCancelado($pedido, $data['motivo']);
+            } catch (\Throwable $e) {
+                \Log::warning('Notify::pedidoCancelado error: '.$e->getMessage());
+            }
+        });
 
         return back()->with('success', 'Pedido cancelado.');
     }
@@ -192,6 +317,9 @@ class PedidoController extends Controller
             'repartidor_id' => ['nullable', 'integer', 'exists:users,id'],
         ]);
 
+        $antes = $pedido->asignado_a ? User::find($pedido->asignado_a) : null;
+        $despues = null;
+
         if (!empty($data['repartidor_id'])) {
             $isRepartidor = User::where('id', $data['repartidor_id'])
                 ->where('role_id', 3)
@@ -200,6 +328,8 @@ class PedidoController extends Controller
             if (!$isRepartidor) {
                 return back()->with('error', 'El usuario seleccionado no es repartidor.');
             }
+
+            $despues = User::find($data['repartidor_id']);
         }
 
         $anterior = (string) ($pedido->asignado_a ?? '');
@@ -215,11 +345,17 @@ class PedidoController extends Controller
             'a'         => $nuevo,
         ]);
 
-        // Bitácora
         BitacoraService::add('pedidos', $nuevo !== '' ? 'asignado' : 'desasignado', $pedido->id, [
             'de' => $anterior,
             'a'  => $nuevo,
         ]);
+
+        // Notificación de asignación (firma correcta)
+        try {
+            Notify::pedidoAsignacion($pedido, $antes, $despues);
+        } catch (\Throwable $e) {
+            \Log::warning('Notify::pedidoAsignacion error: '.$e->getMessage());
+        }
 
         return back()->with('success', 'Asignación actualizada.');
     }

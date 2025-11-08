@@ -10,17 +10,24 @@ const props = defineProps({
 const page  = usePage()
 const flash = page.props.flash ?? {}
 
-// -------------------- helper seguro para Ziggy --------------------
+/** Ziggy seguro */
 function safeRoute(name, params = {}, absolute = true) {
   try {
     if (typeof route !== 'undefined' && route().has(name)) {
       return route(name, params, absolute)
     }
-  } catch (e) {}
+  } catch {}
   return null
 }
 
-// -------------------- buscador --------------------
+/** Regresar (a dashboard si existe, si no, back) */
+function goBack() {
+  const url = safeRoute('dashboard')
+  if (url) router.get(url, {}, { replace: true })
+  else window.history.back()
+}
+
+/** Buscador con debounce */
 const q = ref(props.filters.q ?? '')
 let t = null
 watch(q, (val) => {
@@ -31,7 +38,7 @@ watch(q, (val) => {
   }, 400)
 })
 
-// -------------------- acciones --------------------
+/** Acciones */
 const eliminar = (id) => {
   const url = safeRoute('productos.destroy', id)
   if (!url) return
@@ -39,121 +46,186 @@ const eliminar = (id) => {
   router.delete(url, { preserveScroll: true })
 }
 
+/** Formato dinero */
 const money = (n) =>
   new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' }).format(n ?? 0)
 
-// (opcional) placeholder local si no hay imagen.
-// crea este archivo si quieres usarlo.
-const PLACEHOLDER = '/images/placeholder-product.png'
+/** Placeholder inline */
+const PLACEHOLDER =
+  'data:image/svg+xml;utf8,' +
+  encodeURIComponent(
+    `<svg xmlns="http://www.w3.org/2000/svg" width="160" height="160">
+      <rect width="100%" height="100%" rx="14" ry="14" fill="#EEF2FF"/>
+      <g fill="#6366F1" opacity="0.5">
+        <circle cx="80" cy="68" r="28"/>
+        <rect x="36" y="106" width="88" height="28" rx="8"/>
+      </g>
+    </svg>`
+  )
+
+/** Resolver imagen (sin prefijar /storage) */
+function imgSrc(p) {
+  const cand = p.imagenUrl ?? p.imagen_url ?? null
+  return cand || PLACEHOLDER
+}
+
+/** Badge de stock */
+function stockPillClass(stock) {
+  if (stock == null) return 'bg-gray-100 text-gray-600 ring-1 ring-gray-200'
+  if (Number(stock) < 10) return 'bg-rose-50 text-rose-700 ring-1 ring-rose-200'
+  return 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200'
+}
 </script>
 
 <template>
   <div class="max-w-6xl mx-auto px-6 py-8">
     <!-- Flash -->
-    <div v-if="flash?.success" class="mb-4 rounded-md bg-green-50 text-green-800 px-4 py-3">
+    <div
+      v-if="flash?.success"
+      class="mb-5 rounded-xl border border-emerald-200 bg-emerald-50/70 px-4 py-3 text-emerald-800"
+    >
       {{ flash.success }}
     </div>
 
-    <!-- Título + CTA -->
-    <div class="mb-6 flex flex-wrap items-center justify-between gap-3">
-      <h1 class="text-3xl font-semibold text-indigo-800">🐔 Productos</h1>
+    <!-- Header -->
+    <div
+      class="mb-6 flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-gradient-to-r from-indigo-50 to-white px-4 py-4 ring-1 ring-indigo-100/60"
+    >
+      <div class="flex items-center gap-3">
+        <button
+          type="button"
+          @click="goBack"
+          class="inline-flex items-center gap-2 rounded-xl border border-indigo-200 bg-white px-3 py-2 text-indigo-700 shadow-sm transition hover:bg-indigo-50"
+          title="Regresar"
+        >
+          ← <span class="hidden sm:inline">Regresar</span>
+        </button>
 
-      <!-- Botón solo si Ziggy tiene la ruta -->
+        <div>
+          <h1 class="text-2xl font-bold tracking-tight text-gray-900">Productos</h1>
+          <p class="text-xs text-gray-500">Administra el catálogo y el estado del inventario.</p>
+        </div>
+      </div>
+
       <Link
         v-if="safeRoute('productos.create')"
         :href="safeRoute('productos.create')"
-        class="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 transition"
+        class="inline-flex items-center gap-2 rounded-xl bg-indigo-600 px-4 py-2.5 text-white shadow-sm transition hover:bg-indigo-700"
       >
+        <span class="-ml-1 text-lg">＋</span>
         Nuevo producto
       </Link>
     </div>
 
-    <!-- Buscador -->
+    <!-- Filtros -->
     <div class="mb-6">
-      <input
-        v-model="q"
-        type="text"
-        placeholder="🔍 Buscar por nombre..."
-        class="w-full md:w-96 border border-gray-300 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-400"
-      />
+      <div class="relative w-full md:w-[28rem]">
+        <input
+          v-model="q"
+          type="text"
+          placeholder="Buscar por nombre…"
+          class="w-full rounded-xl border border-gray-300/80 bg-white px-4 py-2.5 pr-10 text-sm shadow-sm outline-none ring-indigo-200 focus:border-indigo-300 focus:ring-2"
+        />
+        <span class="pointer-events-none absolute inset-y-0 right-3 flex items-center text-gray-400">🔍</span>
+      </div>
     </div>
 
     <!-- Tabla -->
-    <div class="overflow-hidden rounded-xl border border-gray-200 shadow-sm bg-white">
+    <div class="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
       <table class="w-full border-collapse text-sm">
-        <thead class="bg-indigo-50 text-indigo-800 text-xs uppercase">
+        <thead class="bg-gray-50 text-gray-600">
           <tr>
-            <th class="px-4 py-3 text-left w-16">#</th>
-            <th class="px-4 py-3 text-left">Imagen</th>
+            <th class="px-4 py-3 text-left w-[56px]">#</th>
+            <th class="px-4 py-3 text-left w-[84px]">Imagen</th>
             <th class="px-4 py-3 text-left">Nombre</th>
             <th class="px-4 py-3 text-left">Descripción</th>
             <th class="px-4 py-3 text-left">Precio</th>
             <th class="px-4 py-3 text-left">Stock</th>
             <th class="px-4 py-3 text-left">Activo</th>
-            <th class="px-4 py-3 text-right">Acciones</th>
+            <th class="px-4 py-3 text-right w-[180px]">Acciones</th>
           </tr>
         </thead>
 
         <tbody>
-          <tr v-for="(p, index) in productos.data" :key="p.id" class="hover:bg-gray-50 transition">
-            <td class="px-4 py-3 font-medium text-gray-600">
+          <tr
+            v-for="(p, index) in productos.data"
+            :key="p.id"
+            class="border-t border-gray-100 odd:bg-white even:bg-gray-50/30 hover:bg-gray-50/80"
+          >
+            <td class="px-4 py-3 font-medium text-gray-500">
               {{ (productos.from ?? 1) + index }}
             </td>
 
-            <!-- Miniatura (usa imagenUrl si viene, o /storage/imagen, o placeholder) -->
+            <!-- Miniatura -->
             <td class="px-4 py-3">
               <img
-                :src="p.imagenUrl || (p.imagen ? `/storage/${p.imagen}` : PLACEHOLDER)"
+                :src="imgSrc(p)"
                 alt="Producto"
-                class="h-10 w-10 object-cover rounded-md border bg-white"
+                class="h-12 w-12 rounded-lg border border-gray-200 bg-white object-cover shadow-sm"
+                @error="$event.target.src = PLACEHOLDER"
               />
             </td>
 
-            <td class="px-4 py-3 text-gray-800 font-medium">{{ p.nombre }}</td>
+            <td class="px-4 py-3 font-medium text-gray-900">
+              {{ p.nombre }}
+              <span
+                v-if="Number(p.stock) < 10"
+                class="ml-2 align-middle rounded-full bg-rose-50 px-2 py-0.5 text-[11px] font-semibold text-rose-700 ring-1 ring-rose-200"
+              >
+                Stock bajo
+              </span>
+            </td>
 
-            <td class="px-4 py-3 text-gray-600 max-w-xs truncate" :title="p.descripcion || 'Sin descripción'">
+            <td class="px-4 py-3 text-gray-600 max-w-[28ch] truncate" :title="p.descripcion || 'Sin descripción'">
               {{ p.descripcion || '—' }}
             </td>
 
-            <td class="px-4 py-3 text-gray-700">{{ money(p.precio) }}</td>
+            <td class="px-4 py-3 font-semibold text-gray-800">
+              {{ money(p.precio) }}
+            </td>
 
-            <td class="px-4 py-3 font-semibold" :class="p.stock < 10 ? 'text-red-600' : 'text-gray-700'">
-              {{ p.stock }}
-              <span v-if="p.stock < 10" class="ml-1 text-xs text-red-500">⚠ Stock bajo</span>
+            <td class="px-4 py-3">
+              <span class="rounded-full px-2.5 py-1 text-xs font-semibold" :class="stockPillClass(p.stock)">
+                {{ p.stock ?? '—' }}
+              </span>
             </td>
 
             <td class="px-4 py-3">
               <span
                 :class="[
-                  'px-3 py-1 rounded-full text-xs font-semibold',
-                  p.activo ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700',
+                  'rounded-full px-2.5 py-1 text-xs font-semibold ring-1',
+                  p.activo
+                    ? 'bg-emerald-50 text-emerald-700 ring-emerald-200'
+                    : 'bg-rose-50 text-rose-700 ring-rose-200',
                 ]"
               >
                 {{ p.activo ? 'Sí' : 'No' }}
               </span>
             </td>
 
-            <td class="px-4 py-3 text-right space-x-3">
-              <Link
-                v-if="safeRoute('productos.edit', p.id)"
-                :href="safeRoute('productos.edit', p.id)"
-                class="text-indigo-600 hover:text-indigo-700 font-medium text-sm"
-              >
-                ✏️ Editar
-              </Link>
+            <td class="px-4 py-3 text-right">
+              <div class="inline-flex items-center gap-2">
+                <Link
+                  v-if="safeRoute('productos.edit', p.id)"
+                  :href="safeRoute('productos.edit', p.id)"
+                  class="inline-flex items-center gap-1 rounded-lg border border-indigo-200 px-3 py-1.5 text-indigo-700 hover:bg-indigo-50"
+                >
+                  ✏️ <span class="text-sm font-medium">Editar</span>
+                </Link>
 
-              <button
-                v-if="safeRoute('productos.destroy', p.id)"
-                @click="eliminar(p.id)"
-                class="text-red-600 hover:text-red-700 font-medium text-sm"
-              >
-                🗑 Eliminar
-              </button>
+                <button
+                  v-if="safeRoute('productos.destroy', p.id)"
+                  @click="eliminar(p.id)"
+                  class="inline-flex items-center gap-1 rounded-lg border border-rose-200 px-3 py-1.5 text-rose-700 hover:bg-rose-50"
+                >
+                  🗑 <span class="text-sm font-medium">Eliminar</span>
+                </button>
+              </div>
             </td>
           </tr>
 
           <tr v-if="productos.data.length === 0">
-            <td colspan="8" class="px-4 py-6 text-center text-gray-500">
+            <td colspan="8" class="px-4 py-10 text-center text-gray-500">
               No hay productos disponibles.
             </td>
           </tr>
@@ -162,17 +234,17 @@ const PLACEHOLDER = '/images/placeholder-product.png'
     </div>
 
     <!-- Paginación -->
-    <div class="flex justify-end mt-5 space-x-2">
+    <div class="mt-6 flex justify-end gap-2">
       <Link
         v-for="(lnk, i) in productos.links"
         :key="i"
         :href="lnk.url || '#'"
         v-html="lnk.label"
         :class="[
-          'px-3 py-1 rounded-md border text-sm transition',
+          'min-w-9 select-none rounded-lg border px-3 py-1.5 text-center text-sm transition',
           lnk.active
-            ? 'bg-indigo-600 text-white border-indigo-600'
-            : 'bg-white text-gray-700 border-gray-300 hover:bg-indigo-50',
+            ? 'border-indigo-600 bg-indigo-600 text-white'
+            : 'border-gray-300 bg-white text-gray-700 hover:bg-indigo-50',
           !lnk.url && 'pointer-events-none opacity-40',
         ]"
       />
