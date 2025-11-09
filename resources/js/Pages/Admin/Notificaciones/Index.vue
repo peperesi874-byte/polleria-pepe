@@ -5,6 +5,7 @@ import { Head, Link, router } from '@inertiajs/vue3'
 import { ref, watch, computed } from 'vue'
 
 const props = defineProps({
+  // Debe venir con n.leida (bool) o equivalente desde el controlador
   notificaciones: Object, // paginator { data, links, ... }
   filters: Object         // { q }
 })
@@ -24,7 +25,11 @@ let t = null
 watch(q, () => {
   clearTimeout(t)
   t = setTimeout(() => {
-    router.get(route('admin.notificaciones.index'), { q: q.value }, { preserveState: true, replace: true })
+    router.get(
+      route('admin.notificaciones.index'),
+      { q: q.value },
+      { preserveState: true, replace: true }
+    )
   }, 350)
 })
 
@@ -70,8 +75,12 @@ function tipoPill(tipo) {
         </div>
 
         <div class="hidden md:flex items-center gap-2">
-          <button type="button" :class="btn('outline')" @click="marcarTodas">Marcar todas como leídas</button>
-          <Link :href="route('admin.dashboard')" class="text-sm text-indigo-600 hover:underline">← Volver al panel</Link>
+          <button type="button" :class="btn('outline')" @click="marcarTodas">
+            Marcar todas como leídas
+          </button>
+          <Link :href="route('admin.dashboard')" class="text-sm text-indigo-600 hover:underline">
+            ← Volver al panel
+          </Link>
         </div>
       </div>
     </template>
@@ -131,7 +140,14 @@ function tipoPill(tipo) {
                 </td>
 
                 <td class="px-4 py-3 text-right">
+                  <!-- ✅ Si ya está leída, mostrar chip; si no, botón -->
+                  <span
+                    v-if="n.leida"
+                    class="inline-flex items-center rounded-lg bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700 ring-1 ring-emerald-200"
+                  >Leída</span>
+
                   <button
+                    v-else
                     :class="btn('outline')"
                     class="!py-1.5"
                     @click="marcarLeida(n.id)"

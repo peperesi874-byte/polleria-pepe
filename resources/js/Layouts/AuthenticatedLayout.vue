@@ -45,7 +45,7 @@ const homeRoute = computed(() => {
         <div class="flex h-16 items-center justify-between">
           <!-- Izquierda: logo + navegación -->
           <div class="flex items-center gap-6">
-            <!-- LOGO: ahora va al panel correcto por rol -->
+            <!-- LOGO -->
             <Link :href="homeRoute" class="flex items-center gap-2">
               <span
                 class="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-indigo-600 text-white font-bold"
@@ -59,6 +59,8 @@ const homeRoute = computed(() => {
               <!-- ADMIN -->
               <template v-if="roleId === 1">
                 <Link :href="route('admin.dashboard')"       :class="navLinkClasses(isCurrent('admin.dashboard'))">Panel</Link>
+                <Link :href="route('catalogo.index')" :class="navLinkClasses(isCurrent('catalogo.index'))">Catálogo</Link>
+                <Link :href="route('productos.index')" :class="navLinkClasses(isCurrent('productos.index'))">Productos</Link>
                 <Link :href="route('admin.pedidos.index')"   :class="navLinkClasses(isCurrent('admin.pedidos.index'))">Pedidos</Link>
                 <Link :href="route('admin.inventario.index')" :class="navLinkClasses(isCurrent('admin.inventario.index'))">Inventario</Link>
                 <Link :href="route('admin.reportes.index')"  :class="navLinkClasses(isCurrent('admin.reportes.index'))">Reportes</Link>
