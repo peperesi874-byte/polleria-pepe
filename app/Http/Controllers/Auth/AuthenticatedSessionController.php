@@ -4,19 +4,19 @@ namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Auth\LoginRequest;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
-use Inertia\Response as InertiaResponse;
-use Symfony\Component\HttpFoundation\Response as SymfonyResponse;
+use Inertia\Response;
 
 class AuthenticatedSessionController extends Controller
 {
     /**
      * Mostrar la vista de inicio de sesión.
      */
-    public function create(): InertiaResponse
+    public function create(): Response
     {
         return Inertia::render('Auth/Login', [
             'canResetPassword' => Route::has('password.request'),
@@ -26,28 +26,32 @@ class AuthenticatedSessionController extends Controller
 
     /**
      * Procesar la autenticación y redirigir según rol.
-     * 
-     * 🔁 Importante:
-     * Usamos Inertia::location() para forzar una recarga completa del navegador.
-     * Así se actualizan correctamente los props de autenticación (sin tener que recargar manualmente).
      */
-    public function store(LoginRequest $request): SymfonyResponse
+    public function store(LoginRequest $request): RedirectResponse
     {
-        // Verificar credenciales
         $request->authenticate();
-
-        // Regenerar sesión
         $request->session()->regenerate();
 
-        // 🚀 Forzar recarga completa a la ruta que decide por rol
-        // (redirige automáticamente según role_id: admin, vendedor, cliente, etc.)
-        return Inertia::location(route('redirect.by.role'));
+        $roleId = (int) (auth()->user()->role_id ?? 0);
+
+        if ($roleId === 1) { // Administrador
+            return redirect('/admin/dashboard');
+        }
+        if ($roleId === 2) { // Vendedor
+            return redirect('/vendedor');
+        }
+        if ($roleId === 3) { // Repartidor
+            return redirect('/repartidor');
+        }
+
+        // Cliente u otro → Catálogo
+        return redirect('/catalogo');
     }
 
     /**
      * Cerrar sesión.
      */
-    public function destroy(Request $request)
+    public function destroy(Request $request): RedirectResponse
     {
         Auth::guard('web')->logout();
 
