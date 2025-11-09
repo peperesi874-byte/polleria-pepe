@@ -62,118 +62,149 @@ const closeMenus = () => { showBitacora.value = false; showNotif.value = false }
 <template>
   <Head title="Panel" />
   <AuthenticatedLayout>
-    <template #header>
-      <div class="relative">
-        <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <h2 class="text-2xl font-bold tracking-tight text-gray-900">Panel de administración</h2>
-            <p class="mt-0.5 text-sm text-gray-500">Resumen rápido del sistema y accesos directos.</p>
-          </div>
-
-          <!-- Acciones / Top-bar (solo Notificaciones y Bitácora) -->
-          <div class="flex flex-wrap items-center gap-2">
-            <!-- 🔔 Notificaciones -->
-            <button
-              type="button"
-              @click="toggleNotif"
-              class="inline-flex items-center gap-2 rounded-xl border px-4 py-2.5 bg-white hover:bg-gray-50"
-              aria-haspopup="true"
-              :aria-expanded="showNotif ? 'true' : 'false'"
-            >
-              🔔 Notificaciones
-              <span
-                v-if="(notifsList?.length ?? 0) > 0"
-                class="ml-1 rounded-full bg-indigo-600 px-2 py-0.5 text-[10px] font-semibold text-white"
-              >
-                {{ notifsList.length }}
-              </span>
-            </button>
-
-            <!-- 📜 Bitácora -->
-            <button
-              type="button"
-              @click="toggleBitacora"
-              class="inline-flex items-center gap-2 rounded-xl border px-4 py-2.5 bg-white hover:bg-gray-50"
-              aria-haspopup="true"
-              :aria-expanded="showBitacora ? 'true' : 'false'"
-            >
-              📜 Bitácora
-              <span
-                v-if="(bitacoraList?.length ?? 0) > 0"
-                class="ml-1 rounded-full bg-emerald-600 px-2 py-0.5 text-[10px] font-semibold text-white"
-              >
-                {{ bitacoraList.length }}
-              </span>
-            </button>
-          </div>
-        </div>
-
-        <!-- Dropdown Notificaciones -->
-        <div v-if="showNotif" class="absolute right-0 z-20 mt-2 w/full max-w-md rounded-2xl border bg-white p-4 shadow-lg">
-          <div class="flex items-center justify-between mb-2">
-            <h4 class="font-semibold text-gray-900">Notificaciones</h4>
-            <button class="text-sm text-gray-500 hover:text-gray-700" @click="closeMenus">Cerrar</button>
-          </div>
-
-          <ul v-if="(notifsList?.length ?? 0) > 0" class="divide-y">
-            <li v-for="(n, i) in notifsList.slice(0,10)" :key="n.id ?? i" class="py-3">
-              <div class="flex items-start justify-between gap-3">
-                <div>
-                  <p class="text-sm font-medium text-gray-800">{{ n.titulo ?? n.tipo ?? 'Notificación' }}</p>
-                  <p class="text-xs text-gray-500">{{ n.mensaje ?? n.detalle ?? '' }}</p>
-                </div>
-                <span class="text-[11px] text-gray-400 whitespace-nowrap">
-                  {{ fmtDate(n.fecha ?? n.when ?? n.created_at) }}
-                </span>
-              </div>
-            </li>
-          </ul>
-          <p v-else class="text-sm text-gray-500">No hay notificaciones por ahora.</p>    
-
-        </div>
-
-        <!-- Dropdown Bitácora -->
-        <div v-if="showBitacora" class="absolute right-0 z-20 mt-2 w/full max-w-2xl rounded-2xl border bg-white p-4 shadow-lg">
-          <div class="flex items-center justify-between mb-2">
-            <h4 class="font-semibold text-gray-900">Bitácora reciente</h4>
-            <button class="text-sm text-gray-500 hover:text-gray-700" @click="closeMenus">Cerrar</button>
-          </div>
-
-          <div class="max-h-[60vh] overflow-auto">
-            <table class="w-full text-sm">
-              <thead class="bg-gray-50 text-gray-600 uppercase text-xs sticky top-0">
-                <tr>
-                  <th class="px-3 py-2 text-left">Fecha</th>
-                  <th class="px-3 py-2 text-left">Actor</th>
-                  <th class="px-3 py-2 text-left">Acción</th>
-                  <th class="px-3 py-2 text-left">Entidad</th>
-                  <th class="px-3 py-2 text-left">Detalle</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr v-for="(b, i) in bitacoraList.slice(0,20)" :key="b.id ?? i" class="border-b last:border-0 hover:bg-gray-50">
-                  <td class="px-3 py-2 text-gray-500 whitespace-nowrap">{{ b.fecha ?? fmtDate(b.when ?? b.created_at) }}</td>
-                  <td class="px-3 py-2 text-gray-700">{{ b.actor ?? b.usuario ?? '—' }}</td>
-                  <td class="px-3 py-2 font-medium text-gray-800">{{ b.accion ?? b.action ?? '—' }}</td>
-                  <td class="px-3 py-2 text-gray-700">{{ b.entidad ?? b.entity ?? '—' }}</td>
-                  <td class="px-3 py-2 text-gray-600">
-                    <span v-if="typeof (b.detalle ?? '') === 'string'">{{ b.detalle ?? b.meta ?? '—' }}</span>
-                    <span v-else>{{ JSON.stringify(b.detalle ?? b.meta ?? {}, null, 0) }}</span>
-                  </td>
-                </tr>
-                <tr v-if="(bitacoraList?.length ?? 0) === 0">
-                  <td colspan="5" class="px-3 py-4 text-center text-gray-500">Sin registros de bitácora.</td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-
-          <div class="mt-3 text-right">
-            <Link :href="route('admin.bitacora.index')" class="text-indigo-600 hover:underline text-sm">Ir a Bitácora</Link>
-          </div>
+<template #header>
+  <div class="relative rounded-2xl bg-gradient-to-r from-indigo-50 to-white ring-1 ring-indigo-100/60 px-4 py-4">
+    <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+      <!-- Título / subtítulo -->
+      <div class="flex items-start gap-3">
+        <span class="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-indigo-100 text-indigo-700">🛠️</span>
+        <div>
+          <h2 class="text-2xl font-bold tracking-tight text-gray-900">Panel de administración</h2>
+          <p class="mt-0.5 text-sm text-gray-500">Resumen rápido del sistema y accesos directos.</p>
         </div>
       </div>
-    </template>
+
+      <!-- Acciones -->
+      <div class="flex flex-wrap items-center gap-2">
+        <!-- 🔔 Notificaciones -->
+        <button
+          type="button"
+          @click="toggleNotif"
+          class="inline-flex items-center gap-2 rounded-xl border border-gray-300 bg-white px-4 py-2.5 text-gray-700 shadow-sm transition hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-indigo-300"
+          aria-haspopup="true"
+          :aria-expanded="showNotif ? 'true' : 'false'"
+        >
+          🔔 Notificaciones
+          <span
+            v-if="(notifsList?.length ?? 0) > 0"
+            class="ml-1 rounded-full bg-indigo-600 px-2 py-0.5 text-[10px] font-semibold text-white"
+          >
+            {{ notifsList.length }}
+          </span>
+        </button>
+
+        <!-- 📜 Bitácora -->
+        <button
+          type="button"
+          @click="toggleBitacora"
+          class="inline-flex items-center gap-2 rounded-xl border border-gray-300 bg-white px-4 py-2.5 text-gray-700 shadow-sm transition hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-indigo-300"
+          aria-haspopup="true"
+          :aria-expanded="showBitacora ? 'true' : 'false'"
+        >
+          📜 Bitácora
+          <span
+            v-if="(bitacoraList?.length ?? 0) > 0"
+            class="ml-1 rounded-full bg-emerald-600 px-2 py-0.5 text-[10px] font-semibold text-white"
+          >
+            {{ bitacoraList.length }}
+          </span>
+        </button>
+      </div>
+    </div>
+
+<!-- Dropdown Notificaciones -->
+<div
+  v-if="showNotif"
+  class="absolute right-0 z-20 mt-2 w/full max-w-md rounded-2xl border bg-white p-4 shadow-lg"
+>
+  <div class="mb-2 flex items-center justify-between">
+    <h4 class="font-semibold text-gray-900">Notificaciones</h4>
+    <button class="text-sm text-gray-500 hover:text-gray-700" @click="closeMenus">Cerrar</button>
+  </div>
+
+  <!-- 👇 contenedor con altura de ~5 ítems y scroll -->
+  <div class="max-h-[300px] overflow-y-auto pr-1">
+    <ul class="divide-y">
+      <li
+        v-for="(n, i) in notifsList" :key="n.id ?? i"
+        class="py-3"
+      >
+        <div class="flex items-start justify-between gap-3">
+          <div>
+            <p class="text-sm font-medium text-gray-800">
+              {{ n.titulo ?? n.tipo ?? 'Notificación' }}
+            </p>
+            <p class="text-xs text-gray-500">
+              {{ n.mensaje ?? n.detalle ?? '' }}
+            </p>
+          </div>
+          <span class="whitespace-nowrap text-[11px] text-gray-400">
+            {{ fmtDate(n.fecha ?? n.when ?? n.created_at) }}
+          </span>
+        </div>
+      </li>
+    </ul>
+  </div>
+
+  <div class="mt-3 text-right">
+    <Link :href="route('admin.notificaciones.index')" class="text-sm text-indigo-600 hover:underline">
+      Ver todas →
+    </Link>
+  </div>
+</div>
+
+    <!-- Dropdown Bitácora -->
+    <div
+      v-if="showBitacora"
+      class="absolute right-4 z-20 mt-2 w-full max-w-2xl rounded-2xl border border-gray-200 bg-white p-4 shadow-lg"
+    >
+      <div class="mb-2 flex items-center justify-between">
+        <h4 class="font-semibold text-gray-900">Bitácora reciente</h4>
+        <button class="text-sm text-gray-500 hover:text-gray-700" @click="closeMenus">Cerrar</button>
+      </div>
+
+      <div class="max-h-[60vh] overflow-auto">
+        <table class="w-full text-sm">
+          <thead class="sticky top-0 bg-gray-50 text-xs uppercase text-gray-600">
+            <tr>
+              <th class="px-3 py-2 text-left">Fecha</th>
+              <th class="px-3 py-2 text-left">Actor</th>
+              <th class="px-3 py-2 text-left">Acción</th>
+              <th class="px-3 py-2 text-left">Entidad</th>
+              <th class="px-3 py-2 text-left">Detalle</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr
+              v-for="(b, i) in bitacoraList.slice(0,20)"
+              :key="b.id ?? i"
+              class="border-b last:border-0 hover:bg-gray-50"
+            >
+              <td class="whitespace-nowrap px-3 py-2 text-gray-500">{{ b.fecha ?? fmtDate(b.when ?? b.created_at) }}</td>
+              <td class="px-3 py-2 text-gray-700">{{ b.actor ?? b.usuario ?? '—' }}</td>
+              <td class="px-3 py-2 font-medium text-gray-800">{{ b.accion ?? b.action ?? '—' }}</td>
+              <td class="px-3 py-2 text-gray-700">{{ b.entidad ?? b.entity ?? '—' }}</td>
+              <td class="px-3 py-2 text-gray-600">
+                <span v-if="typeof (b.detalle ?? '') === 'string'">{{ b.detalle ?? b.meta ?? '—' }}</span>
+                <span v-else>{{ JSON.stringify(b.detalle ?? b.meta ?? {}, null, 0) }}</span>
+              </td>
+            </tr>
+            <tr v-if="(bitacoraList?.length ?? 0) === 0">
+              <td colspan="5" class="px-3 py-4 text-center text-gray-500">Sin registros de bitácora.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="mt-3 text-right">
+        <Link :href="route('admin.bitacora.index')" class="text-sm text-indigo-600 hover:underline">
+          Ir a Bitácora
+        </Link>
+      </div>
+    </div>
+  </div>
+</template>
+
 
     <!-- Contenido principal (cards, tablas, etc.) -->
     <div class="mx-auto max-w-7xl p-6 space-y-8">

@@ -54,6 +54,7 @@ class AuthenticatedSessionController extends Controller
         $request->session()->invalidate();
         $request->session()->regenerateToken();
 
-        return redirect()->route('login');
+        // 👇 Aquí el cambio: manda al catálogo
+        return redirect()->route('catalogo.index'); // o: return redirect('/catalogo');
     }
 }
