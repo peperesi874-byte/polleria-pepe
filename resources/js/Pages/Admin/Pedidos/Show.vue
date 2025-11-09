@@ -1,5 +1,5 @@
+<!-- resources/js/Pages/Vendedor/Pedidos/Index.vue -->
 <script setup>
-import Shared from '@/Pages/Shared/Pedidos/Show.vue'
-defineProps({ pedido:Object, repartidores:Array })
+import Shared from '@/Pages/Shared/Pedidos/Index.vue'
 </script>
-<template><Shared v-bind="$props" /></template>
+<template><Shared /></template>

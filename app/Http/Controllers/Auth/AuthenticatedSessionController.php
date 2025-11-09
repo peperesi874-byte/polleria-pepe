@@ -4,19 +4,19 @@ namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Auth\LoginRequest;
-use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
-use Inertia\Response;
+use Inertia\Response as InertiaResponse;
+use Symfony\Component\HttpFoundation\Response as SymfonyResponse;
 
 class AuthenticatedSessionController extends Controller
 {
     /**
      * Mostrar la vista de inicio de sesión.
      */
-    public function create(): Response
+    public function create(): InertiaResponse
     {
         return Inertia::render('Auth/Login', [
             'canResetPassword' => Route::has('password.request'),
@@ -26,39 +26,26 @@ class AuthenticatedSessionController extends Controller
 
     /**
      * Procesar la autenticación y redirigir según rol.
+     * Usamos Inertia::location() para forzar recarga completa (evita props viejos).
      */
-    public function store(LoginRequest $request): RedirectResponse
+    public function store(LoginRequest $request): SymfonyResponse
     {
         $request->authenticate();
         $request->session()->regenerate();
 
-        $roleId = (int) (auth()->user()->role_id ?? 0);
-
-        if ($roleId === 1) { // Administrador
-            return redirect('/admin/dashboard');
-        }
-        if ($roleId === 2) { // Vendedor
-            return redirect('/vendedor');
-        }
-        if ($roleId === 3) { // Repartidor
-            return redirect('/repartidor');
-        }
-
-        // Cliente u otro → Catálogo
-        return redirect('/catalogo');
+        return Inertia::location(route('redirect.by.role'));
     }
 
     /**
      * Cerrar sesión.
      */
-    public function destroy(Request $request): RedirectResponse
+    public function destroy(Request $request)
     {
         Auth::guard('web')->logout();
 
         $request->session()->invalidate();
         $request->session()->regenerateToken();
 
-        // 👇 Aquí el cambio: manda al catálogo
-        return redirect()->route('catalogo.index'); // o: return redirect('/catalogo');
+        return redirect()->route('catalogo.index');
     }
 }
