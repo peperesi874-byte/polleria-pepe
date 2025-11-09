@@ -34,7 +34,6 @@ class AuthenticatedSessionController extends Controller
 
         $roleId = (int) (auth()->user()->role_id ?? 0);
 
-        // Redirecciones duras por rol (sin intended / sin middleware)
         if ($roleId === 1) { // Administrador
             return redirect('/admin/dashboard');
         }
@@ -59,6 +58,7 @@ class AuthenticatedSessionController extends Controller
         $request->session()->invalidate();
         $request->session()->regenerateToken();
 
-        return redirect()->route('login');
+        // 👇 Aquí el cambio: manda al catálogo
+        return redirect()->route('catalogo.index'); // o: return redirect('/catalogo');
     }
 }
