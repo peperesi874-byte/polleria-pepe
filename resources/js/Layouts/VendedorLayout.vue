@@ -1,40 +1,43 @@
 <script setup>
 import { Link, usePage } from '@inertiajs/vue3'
-import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
+import { computed, ref, onMounted, onBeforeUnmount } from 'vue'
 import { route } from 'ziggy-js'
 
+/* Usuario (de props compartidas de Inertia) */
 const page = usePage()
+const user = computed(() => page.props?.auth?.user ?? null)
+const userName = computed(() => user.value?.name ?? 'Usuario')
+const userInitial = computed(() => (userName.value || 'U').slice(0, 1).toUpperCase())
 
-/* Usuario */
-const userName = computed(() => page.props?.auth?.user?.name ?? 'Usuario')
-const roleId   = computed(() => Number(page.props?.auth?.user?.role_id ?? 0))
-
-/* Dropdown usuario */
+/* Menú de usuario (dropdown) */
 const open = ref(false)
 const toggle = () => { open.value = !open.value }
-const close = (e) => {
+const onDocClick = (e) => {
   const t = e?.target
   if (!t || !(t.closest && t.closest('#user-menu'))) open.value = false
 }
-onMounted(() => document.addEventListener('click', close))
-onBeforeUnmount(() => document.removeEventListener('click', close))
+const onKeydown = (e) => {
+  if (e.key === 'Escape') open.value = false
+}
+onMounted(() => {
+  document.addEventListener('click', onDocClick)
+  document.addEventListener('keydown', onKeydown)
+})
+onBeforeUnmount(() => {
+  document.removeEventListener('click', onDocClick)
+  document.removeEventListener('keydown', onKeydown)
+})
 
-/* Helpers navegación activa (Ziggy) */
+/* Helper de link activo (Ziggy) */
 const isCurrent = (name) => {
   try { return !!route().current(name) } catch { return false }
 }
-const navLinkClasses = (active) => [
-  'px-3 py-2 rounded-lg text-sm font-medium transition',
-  active ? 'bg-indigo-100 text-indigo-800'
-         : 'text-gray-700 hover:bg-gray-100 hover:text-gray-900'
-].join(' ')
-
-/* Ruta de inicio (logo “PP”) según rol */
-const homeRoute = computed(() => {
-  if (roleId.value === 1) return route('admin.dashboard')
-  if (roleId.value === 2) return route('vendedor.dashboard')
-  return route('catalogo.index')
-})
+const linkC = (active) =>
+  [
+    'px-3 py-2 rounded-lg text-sm font-medium transition',
+    active ? 'bg-indigo-100 text-indigo-800'
+           : 'text-gray-700 hover:bg-gray-100 hover:text-gray-900'
+  ].join(' ')
 </script>
 
 <template>
@@ -45,8 +48,8 @@ const homeRoute = computed(() => {
         <div class="flex h-16 items-center justify-between">
           <!-- Izquierda: logo + navegación -->
           <div class="flex items-center gap-6">
-            <!-- LOGO: ahora va al panel correcto por rol -->
-            <Link :href="homeRoute" class="flex items-center gap-2">
+            <!-- Logo: lleva al dashboard del vendedor -->
+            <Link :href="route('vendedor.dashboard')" class="flex items-center gap-2">
               <span
                 class="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-indigo-600 text-white font-bold"
                 aria-label="Inicio"
@@ -54,30 +57,27 @@ const homeRoute = computed(() => {
               <span class="sr-only">Residencia Pollería Pepe</span>
             </Link>
 
-            <!-- Menú por rol -->
+            <!-- Menú principal -->
             <div class="hidden md:flex items-center gap-1">
-              <!-- ADMIN -->
-              <template v-if="roleId === 1">
-                <Link :href="route('admin.dashboard')"       :class="navLinkClasses(isCurrent('admin.dashboard'))">Panel</Link>
-                <Link :href="route('admin.pedidos.index')"   :class="navLinkClasses(isCurrent('admin.pedidos.index'))">Pedidos</Link>
-                <Link :href="route('admin.inventario.index')" :class="navLinkClasses(isCurrent('admin.inventario.index'))">Inventario</Link>
-                <Link :href="route('admin.reportes.index')"  :class="navLinkClasses(isCurrent('admin.reportes.index'))">Reportes</Link>
-                <Link :href="route('admin.usuarios.index')"  :class="navLinkClasses(isCurrent('admin.usuarios.index'))">Usuarios</Link>
-                <Link :href="route('admin.config.edit')"     :class="navLinkClasses(isCurrent('admin.config.edit'))">Configuración</Link>
-              </template>
+              <Link :href="route('vendedor.dashboard')"
+                    :class="linkC(isCurrent('vendedor.dashboard'))">
+                Panel
+              </Link>
 
-              <!-- VENDEDOR -->
-              <template v-else-if="roleId === 2">
-                <Link :href="route('vendedor.dashboard')"        :class="navLinkClasses(isCurrent('vendedor.dashboard'))">Panel</Link>
-                <Link :href="route('vendedor.pedidos.index')"    :class="navLinkClasses(isCurrent('vendedor.pedidos.index'))">Pedidos</Link>
-                <Link :href="route('vendedor.reportes.operativos')" :class="navLinkClasses(isCurrent('vendedor.reportes.operativos'))">Reportes</Link>
-              </template>
+              <Link :href="route('vendedor.pedidos.index')"
+                    :class="linkC(isCurrent('vendedor.pedidos.index'))">
+                Pedidos
+              </Link>
 
-              <!-- Público / otros roles -->
-              <template v-else>
-                <Link :href="route('catalogo.index')" :class="navLinkClasses(isCurrent('catalogo.index'))">Catálogo</Link>
-                <Link :href="route('productos.index')" :class="navLinkClasses(isCurrent('productos.index'))">Productos</Link>
-              </template>
+              <Link :href="route('catalogo.index')"
+                    :class="linkC(isCurrent('catalogo.index'))">
+                Catálogo
+              </Link>
+
+              <Link :href="route('vendedor.reportes.operativos')"
+                    :class="linkC(isCurrent('vendedor.reportes.operativos'))">
+                Reportes
+              </Link>
             </div>
           </div>
 
@@ -94,10 +94,10 @@ const homeRoute = computed(() => {
                 class="inline-flex h-8 w-8 items-center justify-center rounded-full bg-indigo-100 text-indigo-700 font-semibold"
                 :title="userName"
               >
-                {{ userName.slice(0,1).toUpperCase() }}
+                {{ userInitial }}
               </span>
               <span class="hidden sm:inline text-gray-800">{{ userName }}</span>
-              <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-gray-500" viewBox="0 0 20 20" fill="currentColor">
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-gray-500" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
                 <path fill-rule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.21l3.71-3.98a.75.75 0 111.08 1.04l-4.24 4.54a.75.75 0 01-1.08 0L5.21 8.27a.75.75 0 01.02-1.06z" clip-rule="evenodd"/>
               </svg>
             </button>
@@ -132,7 +132,7 @@ const homeRoute = computed(() => {
       </div>
     </nav>
 
-    <!-- Encabezado de página -->
+    <!-- Encabezado de página (opcional) -->
     <header v-if="$slots.header" class="bg-white shadow-sm">
       <div class="mx-auto max-w-7xl px-4 py-4 sm:px-6 lg:px-8">
         <slot name="header" />

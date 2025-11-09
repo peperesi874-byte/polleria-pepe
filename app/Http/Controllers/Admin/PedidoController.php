@@ -9,23 +9,24 @@ use App\Models\User;
 use App\Services\BitacoraService;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
+use Illuminate\Support\Facades\DB;
 
-// Inventario automático por PIEZAS
+// Inventario automático por piezas
 use App\Models\Inventario;
 use App\Models\InventarioMovimiento;
-use Illuminate\Support\Facades\DB;
 
 // Notificaciones in-app
 use App\Services\Notify;
 
 class PedidoController extends Controller
 {
-    /** Listado con filtros */
+    /** Listado con filtros (Admin y Vendedor) */
     public function index(Request $request)
     {
-        $estado   = $request->string('estado')->toString();
-        $q        = $request->string('q')->toString();
-        $asignado = $request->string('asignado')->toString(); // '', 'none', 'any'
+        // Parámetros de query string
+        $estado   = trim((string) $request->query('estado', ''));
+        $q        = trim((string) $request->query('q', ''));
+        $asignado = trim((string) $request->query('asignado', '')); // '', 'none', 'any'
 
         $query = Pedido::query()
             ->withCount('items')
@@ -41,10 +42,12 @@ class PedidoController extends Controller
             $query->whereNotNull('asignado_a');
         }
 
+        // 🔎 Búsqueda insensible a mayúsculas/minúsculas
         if ($q !== '') {
-            $query->where(function ($w) use ($q) {
-                $w->where('folio', 'like', "%{$q}%")
-                  ->orWhere('observaciones', 'like', "%{$q}%");
+            $qLower = mb_strtolower($q, 'UTF-8');
+            $query->where(function ($w) use ($qLower) {
+                $w->whereRaw('LOWER(folio) LIKE ?', ['%' . $qLower . '%'])
+                  ->orWhereRaw('LOWER(observaciones) LIKE ?', ['%' . $qLower . '%']);
             });
         }
 
@@ -53,7 +56,7 @@ class PedidoController extends Controller
             ->withQueryString()
             ->through(function ($p) {
                 return [
-                    'id'         => $p->id,
+                    'id'         => (int) $p->id,
                     'folio'      => $p->folio,
                     'estado'     => $p->estado,
                     'tipo'       => $p->tipo_entrega,
@@ -65,15 +68,20 @@ class PedidoController extends Controller
                 ];
             });
 
-        return Inertia::render('Admin/Pedidos/Index', [
-            'pedidos' => $pedidos,
-            'filters' => ['q' => $q, 'estado' => $estado, 'asignado' => $asignado],
-            'estados' => ['pendiente', 'preparando', 'listo', 'en_camino', 'entregado', 'cancelado'],
+        $role = $request->routeIs('vendedor.*') ? 'vendedor' : 'admin';
+
+        return Inertia::render('Pedidos/Index', [
+            'role'     => $role,
+            'pedidos'  => $pedidos,
+            'q'        => $q,
+            'estado'   => $estado,
+            'asignado' => $asignado,
+            'estados'  => ['pendiente', 'preparando', 'listo', 'en_camino', 'entregado', 'cancelado'],
         ]);
     }
 
-    /** Detalle */
-    public function show(Pedido $pedido)
+    /** Detalle (Admin y Vendedor) — usa vista compartida Pedidos/Show */
+    public function show(Request $request, Pedido $pedido)
     {
         $pedido->load([
             'items.producto',
@@ -86,25 +94,28 @@ class PedidoController extends Controller
             ->orderBy('name')
             ->get();
 
-        return Inertia::render('Admin/Pedidos/Show', [
+        $role = $request->routeIs('vendedor.*') ? 'vendedor' : 'admin';
+
+        return Inertia::render('Pedidos/Show', [
+            'role' => $role,
             'pedido' => [
-                'id'         => $pedido->id,
-                'folio'      => $pedido->folio,
-                'estado'     => $pedido->estado,
-                'tipo'       => $pedido->tipo_entrega,
-                'total'      => (float) $pedido->total,
+                'id'            => (int) $pedido->id,
+                'folio'         => $pedido->folio,
+                'estado'        => $pedido->estado,
+                'tipo'          => $pedido->tipo_entrega,
+                'total'         => (float) $pedido->total,
                 'observaciones' => $pedido->observaciones,
-                'created_at' => $pedido->created_at?->format('Y-m-d H:i'),
-                'asignado_a' => $pedido->asignado_a,
-                'items'      => $pedido->items->map(fn ($it) => [
-                    'id'        => $it->id,
+                'created_at'    => $pedido->created_at?->format('Y-m-d H:i'),
+                'asignado_a'    => $pedido->asignado_a,
+                'items'         => $pedido->items->map(fn ($it) => [
+                    'id'        => (int) $it->id,
                     'producto'  => $it->producto?->nombre ?? '—',
                     'cantidad'  => (int) $it->cantidad,
                     'precio'    => (float) $it->precio_unitario,
                     'subtotal'  => (float) $it->subtotal,
                 ]),
-                'logs'       => $pedido->logs->map(fn ($log) => [
-                    'id'     => $log->id,
+                'logs'          => $pedido->logs->map(fn ($log) => [
+                    'id'     => (int) $log->id,
                     'accion' => $log->accion,
                     'de'     => $log->de,
                     'a'      => $log->a,
@@ -117,7 +128,7 @@ class PedidoController extends Controller
         ]);
     }
 
-    /** Cambiar estado (con inventario automático por piezas + notificaciones) */
+    /** Cambiar estado (con inventario por piezas + notificaciones) */
     public function setEstado(Request $request, Pedido $pedido)
     {
         $estados = ['pendiente', 'preparando', 'listo', 'en_camino', 'entregado'];
@@ -133,28 +144,30 @@ class PedidoController extends Controller
         $anterior = $pedido->estado;
         $nuevo    = $data['estado'];
 
-        // Pre-chequeo de stock si vamos a descontar
-        if (in_array($nuevo, ['listo', 'entregado'])) {
+        // Pre-chequeo de stock si se va a descontar
+        if (in_array($nuevo, ['listo', 'entregado'], true)) {
             $pedido->loadMissing('items.producto');
             foreach ($pedido->items as $it) {
                 $inv = Inventario::firstOrCreate(
                     ['producto_id' => $it->producto_id],
                     ['stock_actual' => 0, 'stock_minimo' => 0]
                 );
+
                 if ($inv->stock_actual < (int) $it->cantidad) {
-                    $nombre = $it->producto?->nombre ?? ('ID '.$it->producto_id);
+                    $nombre = $it->producto?->nombre ?? ('ID ' . $it->producto_id);
                     return back()->with('error', "Stock insuficiente para «{$nombre}». Requeridas: {$it->cantidad}, disponibles: {$inv->stock_actual}.");
                 }
             }
         }
 
         DB::transaction(function () use ($pedido, $anterior, $nuevo) {
-            // a) Cambiar estado
+            // a) Actualizar estado
             $pedido->update(['estado' => $nuevo]);
 
-            // b) Descuento por piezas (idempotente)
-            if (in_array($nuevo, ['listo', 'entregado'])) {
+            // b) Descontar por piezas (idempotente)
+            if (in_array($nuevo, ['listo', 'entregado'], true)) {
                 $pedido->loadMissing('items.producto');
+
                 foreach ($pedido->items as $it) {
                     $prodId = (int) $it->producto_id;
                     $pzs    = (int) $it->cantidad;
@@ -163,7 +176,10 @@ class PedidoController extends Controller
                         ->where('tipo', 'salida')
                         ->where('motivo', 'pedido:' . $pedido->id)
                         ->exists();
-                    if ($yaAplicado) continue;
+
+                    if ($yaAplicado) {
+                        continue;
+                    }
 
                     $inv = Inventario::firstOrCreate(
                         ['producto_id' => $prodId],
@@ -183,13 +199,13 @@ class PedidoController extends Controller
                         'stock_resultante' => $nuevoStock,
                     ]);
 
-                    // Si quedó bajo mínimo, notificar
+                    // Notificación de bajo stock
                     if ($nuevoStock <= (int) ($inv->stock_minimo ?? 0)) {
-                        $nombre = $it->producto?->nombre ?? ('ID '.$prodId);
+                        $nombre = $it->producto?->nombre ?? ('ID ' . $prodId);
                         try {
                             Notify::lowStock($prodId, $nombre, $nuevoStock, (int) ($inv->stock_minimo ?? 0));
                         } catch (\Throwable $e) {
-                            \Log::warning('Notify::lowStock error: '.$e->getMessage());
+                            \Log::warning('Notify::lowStock error: ' . $e->getMessage());
                         }
                     }
                 }
@@ -211,11 +227,11 @@ class PedidoController extends Controller
                 'unidad' => 'piezas',
             ]);
 
-            // e) Notificación in-app (firma correcta)
+            // e) Notificación in-app
             try {
                 Notify::pedidoEstado($pedido, $anterior, $nuevo);
             } catch (\Throwable $e) {
-                \Log::warning('Notify::pedidoEstado error: '.$e->getMessage());
+                \Log::warning('Notify::pedidoEstado error: ' . $e->getMessage());
             }
         });
 
@@ -228,7 +244,7 @@ class PedidoController extends Controller
         return $this->setEstado($request, $pedido);
     }
 
-    /** Cancelar (con reposición automática por piezas + notificación) */
+    /** Cancelar (con reposición por piezas + notificación) */
     public function cancelar(Request $request, Pedido $pedido)
     {
         $data = $request->validate([
@@ -242,13 +258,13 @@ class PedidoController extends Controller
         $anterior = $pedido->estado;
 
         DB::transaction(function () use ($pedido, $data, $anterior) {
-            // a) Cambiar estado → cancelado
+            // a) Estado cancelado
             $pedido->update([
                 'estado'             => 'cancelado',
                 'motivo_cancelacion' => $data['motivo'],
             ]);
 
-            // b) Reponer por piezas si previamente se descontó por este pedido (idempotente)
+            // b) Reposición por piezas (idempotente)
             $pedido->loadMissing('items');
             foreach ($pedido->items as $it) {
                 $prodId = (int) $it->producto_id;
@@ -281,7 +297,7 @@ class PedidoController extends Controller
                 }
             }
 
-            // c) Log del pedido
+            // c) Log
             PedidoLog::create([
                 'pedido_id' => $pedido->id,
                 'user_id'   => auth()->id(),
@@ -299,11 +315,11 @@ class PedidoController extends Controller
                 'unidad' => 'piezas',
             ]);
 
-            // e) Notificación in-app de cancelación (firma correcta)
+            // e) Notificación
             try {
                 Notify::pedidoCancelado($pedido, $data['motivo']);
             } catch (\Throwable $e) {
-                \Log::warning('Notify::pedidoCancelado error: '.$e->getMessage());
+                \Log::warning('Notify::pedidoCancelado error: ' . $e->getMessage());
             }
         });
 
@@ -317,7 +333,7 @@ class PedidoController extends Controller
             'repartidor_id' => ['nullable', 'integer', 'exists:users,id'],
         ]);
 
-        $antes = $pedido->asignado_a ? User::find($pedido->asignado_a) : null;
+        $antes   = $pedido->asignado_a ? User::find($pedido->asignado_a) : null;
         $despues = null;
 
         if (!empty($data['repartidor_id'])) {
@@ -350,11 +366,11 @@ class PedidoController extends Controller
             'a'  => $nuevo,
         ]);
 
-        // Notificación de asignación (firma correcta)
+        // Notificación
         try {
-            Notify::pedidoAsignacion($pedido, $antes, $despues);
+            Notify::pedidoAsignacion($pedido, $antes ?? null, $despues);
         } catch (\Throwable $e) {
-            \Log::warning('Notify::pedidoAsignacion error: '.$e->getMessage());
+            \Log::warning('Notify::pedidoAsignacion error: ' . $e->getMessage());
         }
 
         return back()->with('success', 'Asignación actualizada.');
