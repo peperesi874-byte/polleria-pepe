@@ -1,222 +1,199 @@
 <script setup>
-import { Link } from '@inertiajs/vue3'
-import { ref, computed } from 'vue'
+import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue'
+import { Link, router } from '@inertiajs/vue3'
+import { ref, watch, onBeforeUnmount, computed } from 'vue'
+import { route } from 'ziggy-js' // ✅ import Ziggy
 
 const props = defineProps({
-  role: { type: String, default: 'admin' },   // 'admin' | 'vendedor'
-  pedidos: { type: Object, required: true },  // paginator (con links)
+  role: { type: String, default: 'admin' }, // 'admin' | 'vendedor'
+  pedidos: Object,                           // paginator
   q: String,
   estado: String,
-  asignado: String,
-  estados: { type: Array, default: () => [] },
+  asignado: String,                          // '', 'any', 'none'
+  estados: Array,
 })
 
-/* Base por rol (sin Ziggy) */
 const base = computed(() => (props.role === 'vendedor' ? 'vendedor' : 'admin'))
 
-/* URL del form (GET clásico) */
-const formAction = computed(() => `/${base.value}/pedidos`)
+const q        = ref(props.q ?? '')
+const estado   = ref(props.estado ?? '')
+const asignado = ref(props.asignado ?? '')
 
-/* Filtros (con valores iniciales) */
-const buscador       = ref(props.q ?? '')
-const filtroEstado   = ref(props.estado ?? '')
-const filtroAsignado = ref(props.asignado ?? '')
+// helpers
+const money = (n) =>
+  new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' }).format(Number(n ?? 0))
 
-/* Autosubmit con debounce para el buscador y selects */
-const formRef = ref(null)
-let t = null
-function autoSubmit() {
-  clearTimeout(t)
-  t = setTimeout(() => {
-    formRef.value?.submit()
-  }, 300)
+function pillColor(e) {
+  switch (e) {
+    case 'cancelado':  return 'bg-red-100 text-red-700'
+    case 'entregado':  return 'bg-green-100 text-green-700'
+    case 'listo':      return 'bg-blue-100 text-blue-700'
+    case 'en_camino':  return 'bg-indigo-100 text-indigo-700'
+    case 'preparando': return 'bg-amber-100 text-amber-700'
+    default:           return 'bg-amber-100 text-amber-700'
+  }
 }
 
-/* Formato de moneda */
-const money = n =>
-  new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' }).format(n ?? 0)
+let t = null
+const pushFilters = () => {
+  const params = {}
+  if ((q.value ?? '') !== '')        params.q = q.value
+  if ((estado.value ?? '') !== '')   params.estado = estado.value
+  if ((asignado.value ?? '') !== '') params.asignado = asignado.value
+
+  router.get(route(base.value + '.pedidos.index'), params, {
+    preserveState: true,
+    replace: true,
+  })
+}
+
+watch([q, estado, asignado], () => {
+  clearTimeout(t)
+  t = setTimeout(pushFilters, 300)
+})
+
+onBeforeUnmount(() => clearTimeout(t))
 </script>
 
 <template>
-  <div class="max-w-6xl mx-auto p-6 space-y-6">
-    <!-- Encabezado -->
-    <header class="flex items-end justify-between flex-wrap gap-4">
-      <div>
-        <h1 class="text-2xl md:text-3xl font-semibold text-indigo-800">Pedidos</h1>
-        <p class="text-sm text-neutral-500">
-          Gestión y seguimiento de pedidos del sistema.
-        </p>
-      </div>
+  <!-- ENVUELTO EN EL LAYOUT PARA MOSTRAR LA BARRA DE MÓDULOS -->
+  <AuthenticatedLayout>
+    <!-- ===== Barra superior ===== -->
+    <template #header>
+      <div
+        class="flex items-center justify-between rounded-2xl border bg-gradient-to-r from-indigo-50 to-white px-4 py-4 ring-1 ring-indigo-100/60"
+      >
+        <div class="flex items-center gap-3">
+          <div class="grid h-10 w-10 place-items-center rounded-xl bg-indigo-100 text-indigo-700 text-lg">🧺</div>
+          <div>
+            <h1 class="text-2xl font-bold text-gray-900">Pedidos</h1>
+            <p class="text-sm text-gray-500">Gestión y seguimiento de pedidos del sistema.</p>
+          </div>
+        </div>
 
-      <div class="flex items-center gap-3">
-        <!-- ← Volver al panel -->
-        <Link
-          :href="`/${base}/dashboard`"
-          class="text-indigo-600 hover:text-indigo-700 text-sm"
-        >
-          ← Volver al panel
-        </Link>
-      </div>
-    </header>
+        <div class="flex items-center gap-2">
+          <!-- Botón solo VENDEDOR -->
+          <Link
+            v-if="base === 'vendedor'"
+            :href="route('vendedor.pedidos.create')"
+            class="hidden sm:inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700"
+          >
+            + Nuevo pedido
+          </Link>
 
-    <!-- Filtros -->
-    <form
-      ref="formRef"
-      :action="formAction"
-      method="GET"
-      class="flex flex-wrap items-center gap-3"
-    >
-      <!-- Buscar -->
-      <div class="relative">
-        <span
-          class="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
-          aria-hidden="true"
-        >🔎</span>
+          <Link
+            :href="route(base + '.dashboard')"
+            class="text-sm text-indigo-600 hover:underline"
+            v-if="$page?.props?.auth"
+          >
+            ← Volver al panel
+          </Link>
+        </div>
+      </div>
+    </template>
+
+    <!-- ===== Contenido ===== -->
+    <div class="max-w-7xl mx-auto px-6 py-8">
+      <!-- Filtros -->
+      <div class="mb-5 flex flex-wrap items-center gap-3">
         <input
-          name="q"
-          v-model="buscador"
-          type="search"
-          inputmode="search"
-          placeholder="Buscar por folio u observaciones…"
-          class="w-[280px] md:w-[340px] border rounded-lg pl-9 pr-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-          @input="autoSubmit"
-          @keydown.enter.prevent="autoSubmit"
-          aria-label="Buscar por folio u observaciones"
+          v-model="q"
+          type="text"
+          placeholder="🔎 Buscar por folio u observaciones…"
+          class="w-full md:w-80 rounded-lg border-gray-300 px-4 py-2 focus:ring-indigo-400"
+        />
+
+        <select v-model="estado" class="rounded-lg border-gray-300 px-3 py-2 focus:ring-indigo-400">
+          <option value="">Todos los estados</option>
+          <option v-for="e in estados" :key="e" :value="e">{{ (e || '').replace('_',' ') }}</option>
+        </select>
+
+        <select v-model="asignado" class="rounded-lg border-gray-300 px-3 py-2 focus:ring-indigo-400">
+          <option value="">Asignados: todos</option>
+          <option value="any">Solo asignados</option>
+          <option value="none">Solo sin asignar</option>
+        </select>
+      </div>
+
+      <!-- Tabla -->
+      <div class="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
+        <table class="w-full text-sm">
+          <thead class="bg-indigo-50 text-indigo-800 text-xs uppercase">
+            <tr>
+              <th class="px-4 py-3 text-left">#</th>
+              <th class="px-4 py-3 text-left">Folio</th>
+              <th class="px-4 py-3 text-left">Estado</th>
+              <th class="px-4 py-3 text-left">Tipo</th>
+              <th class="px-4 py-3 text-left">Items</th>
+              <th class="px-4 py-3 text-left">Asignado a</th>
+              <th class="px-4 py-3 text-left">Total</th>
+              <th class="px-4 py-3 text-left">Creado</th>
+              <th class="px-4 py-3 text-right">Acciones</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="(p, i) in pedidos.data" :key="p.id" class="hover:bg-gray-50 transition">
+              <td class="px-4 py-3 text-gray-600">{{ (pedidos.from ?? 1) + i }}</td>
+              <td class="px-4 py-3 font-medium text-gray-800">{{ p.folio ?? '—' }}</td>
+
+              <td class="px-4 py-3">
+                <span :class="['px-2 py-1 rounded-full text-xs font-semibold', pillColor(p.estado)]">
+                  {{ (p.estado || 'pendiente').replace('_',' ') }}
+                </span>
+              </td>
+
+              <td class="px-4 py-3 capitalize">{{ (p.tipo || '—').toString().replace('_',' ') }}</td>
+              <td class="px-4 py-3">{{ p.items ?? 0 }}</td>
+
+              <td class="px-4 py-3">
+                <span :class="[
+                  'px-2 py-1 rounded-full text-xs',
+                  p.repartidor ? 'bg-indigo-100 text-indigo-700' : 'bg-gray-100 text-gray-600'
+                ]">
+                  {{ p.repartidor ?? '—' }}
+                </span>
+              </td>
+
+              <td class="px-4 py-3">{{ money(p.total) }}</td>
+              <td class="px-4 py-3 text-gray-500">{{ p.created_at ?? '—' }}</td>
+
+              <td class="px-4 py-3 text-right">
+                <Link
+                  :href="route(base + '.pedidos.show', p.id)"
+                  class="text-indigo-600 hover:text-indigo-700 font-medium"
+                >
+                  Ver detalle →
+                </Link>
+              </td>
+            </tr>
+
+            <tr v-if="(pedidos.data?.length || 0) === 0">
+              <td colspan="9" class="px-4 py-6 text-center text-gray-500">
+                No hay pedidos con esos filtros.
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Paginación -->
+      <div class="mt-5 flex justify-end gap-2">
+        <Link
+          v-for="(lnk, i) in pedidos.links"
+          :key="i"
+          :href="lnk.url || '#'"
+          v-html="lnk.label"
+          preserve-state
+          replace
+          :class="[
+            'px-3 py-1 rounded-md border text-sm',
+            lnk.active
+              ? 'bg-indigo-600 text-white border-indigo-600'
+              : 'bg-white text-gray-700 border-gray-300 hover:bg-indigo-50',
+            !lnk.url && 'pointer-events-none opacity-40'
+          ]"
         />
       </div>
-
-      <!-- Estado -->
-      <div class="relative">
-        <select
-          name="estado"
-          v-model="filtroEstado"
-          class="w-[220px] appearance-none pr-9 border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-          @change="autoSubmit"
-          aria-label="Filtrar por estado"
-        >
-          <option value="">Todos los estados</option>
-          <option v-for="e in estados" :key="e" :value="e">
-            {{ e.replace('_',' ') }}
-          </option>
-        </select>
-        <svg
-          class="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-500"
-          xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"
-        >
-          <path fill-rule="evenodd"
-            d="M5.23 7.21a.75.75 0 011.06.02L10 10.94l3.71-3.71a.75.75 0 111.08 1.04l-4.25 4.25a.75.75 0 01-1.08 0L5.21 8.27a.75.75 0 01.02-1.06z"
-            clip-rule="evenodd" />
-        </svg>
-      </div>
-
-      <!-- Asignación -->
-      <div class="relative">
-        <select
-          name="asignado"
-          v-model="filtroAsignado"
-          class="w-[220px] appearance-none pr-9 border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-          @change="autoSubmit"
-          aria-label="Filtrar por asignación"
-        >
-          <option value="">Asignados: todos</option>
-          <option value="none">Sin asignar</option>
-          <option value="any">Asignados</option>
-        </select>
-        <svg
-          class="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-500"
-          xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"
-        >
-          <path fill-rule="evenodd"
-            d="M5.23 7.21a.75.75 0 011.06.02L10 10.94l3.71-3.71a.75.75 0 111.08 1.04l-4.25 4.25a.75.75 0 01-1.08 0L5.21 8.27a.75.75 0 01.02-1.06z"
-            clip-rule="evenodd" />
-        </svg>
-      </div>
-
-      <button
-        type="submit"
-        class="bg-indigo-600 text-white rounded-lg px-4 py-2 text-sm hover:bg-indigo-700"
-      >
-        Filtrar
-      </button>
-    </form>
-
-    <!-- Tabla -->
-    <div class="overflow-hidden rounded-xl border bg-white">
-      <table class="w-full text-sm">
-        <thead class="bg-indigo-50 text-indigo-800 text-xs uppercase">
-          <tr>
-            <th class="px-4 py-3 text-left">#</th>
-            <th class="px-4 py-3 text-left">Folio</th>
-            <th class="px-4 py-3 text-left">Estado</th>
-            <th class="px-4 py-3 text-left">Tipo</th>
-            <th class="px-4 py-3 text-left">Items</th>
-            <th class="px-4 py-3 text-left">Asignado a</th>
-            <th class="px-4 py-3 text-left">Total</th>
-            <th class="px-4 py-3 text-left">Creado</th>
-            <th class="px-4 py-3"></th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr v-for="p in pedidos.data" :key="p.id" class="hover:bg-gray-50">
-            <td class="px-4 py-3">{{ p.id }}</td>
-            <td class="px-4 py-3">{{ p.folio ?? '—' }}</td>
-            <td class="px-4 py-3">
-              <span
-                class="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium capitalize"
-                :class="{
-                  'bg-rose-100 text-rose-800': p.estado === 'cancelado',
-                  'bg-emerald-100 text-emerald-800': p.estado === 'entregado',
-                  'bg-amber-100 text-amber-800': p.estado === 'preparando' || p.estado === 'listo',
-                  'bg-indigo-100 text-indigo-800': p.estado === 'en_camino',
-                  'bg-gray-100 text-gray-700': !['cancelado','entregado','preparando','listo','en_camino'].includes(p.estado)
-                }"
-              >
-                {{ p.estado.replace('_',' ') }}
-              </span>
-            </td>
-            <td class="px-4 py-3 capitalize">{{ p.tipo?.replace('_',' ') }}</td>
-            <td class="px-4 py-3">{{ p.items }}</td>
-            <td class="px-4 py-3">
-              <span v-if="p.repartidor" class="inline-flex rounded-full bg-indigo-100 text-indigo-800 text-xs px-2.5 py-0.5">
-                {{ p.repartidor }}
-              </span>
-              <span v-else class="inline-flex rounded-full bg-gray-100 text-gray-600 text-xs px-2.5 py-0.5">—</span>
-            </td>
-            <td class="px-4 py-3 font-semibold">{{ money(p.total) }}</td>
-            <td class="px-4 py-3">{{ p.created_at }}</td>
-            <td class="px-4 py-3 text-right">
-              <Link
-                :href="`/${base}/pedidos/${p.id}`"
-                class="text-indigo-600 hover:text-indigo-700 font-medium"
-              >
-                Ver detalle →
-              </Link>
-            </td>
-          </tr>
-
-          <tr v-if="!pedidos.data?.length">
-            <td colspan="9" class="px-4 py-8 text-center text-neutral-500">
-              Sin resultados.
-            </td>
-          </tr>
-        </tbody>
-      </table>
     </div>
-
-    <!-- Paginación -->
-    <nav v-if="pedidos.links?.length" class="flex flex-wrap gap-2">
-      <Link
-        v-for="l in pedidos.links"
-        :key="(l.url || '') + l.label"
-        :href="l.url || '#'"
-        v-html="l.label"
-        class="px-3 py-1.5 rounded border text-sm"
-        :class="[
-          l.active ? 'bg-indigo-600 text-white border-indigo-600' : 'text-neutral-700 hover:bg-neutral-100',
-          !l.url && 'opacity-40 pointer-events-none'
-        ]"
-        preserve-scroll
-      />
-    </nav>
-  </div>
+  </AuthenticatedLayout>
 </template>

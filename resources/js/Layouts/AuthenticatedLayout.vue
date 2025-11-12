@@ -68,10 +68,11 @@ const homeRoute = computed(() => {
                 <Link :href="route('admin.config.edit')"       :class="navLinkClasses(isCurrent('admin.config.edit'))">Configuración</Link>
               </template>
 
-              <!-- VENDEDOR -->
+              <!-- VENDEDOR (⚠️ AQUÍ SE AGREGÓ “Catálogo”) -->
               <template v-else-if="roleId === 2">
-                <Link :href="route('vendedor.dashboard')"          :class="navLinkClasses(isCurrent('vendedor.dashboard'))">Panel</Link>
-                <Link :href="route('vendedor.pedidos.index')"      :class="navLinkClasses(isCurrent('vendedor.pedidos.index'))">Pedidos</Link>
+                <Link :href="route('vendedor.dashboard')"           :class="navLinkClasses(isCurrent('vendedor.dashboard'))">Panel</Link>
+                <Link :href="route('vendedor.pedidos.index')"       :class="navLinkClasses(isCurrent('vendedor.pedidos.index'))">Pedidos</Link>
+                <Link :href="route('catalogo.index')"               :class="navLinkClasses(isCurrent('catalogo.index'))">Catálogo</Link>
                 <Link :href="route('vendedor.reportes.operativos')" :class="navLinkClasses(isCurrent('vendedor.reportes.operativos'))">Reportes</Link>
               </template>
 

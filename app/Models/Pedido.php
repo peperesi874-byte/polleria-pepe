@@ -3,8 +3,8 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class Pedido extends Model
 {
@@ -13,35 +13,51 @@ class Pedido extends Model
     protected $fillable = [
         'folio',
         'id_cliente',
-        'id_direccion',
-        'asignado_a',
-        'creado_por',
-        'tipo_entrega',     // mostrador | domicilio
-        'total',
-        'estado',           // pendiente | preparando | listo | en_camino | entregado | cancelado
-        'motivo_cancelacion',
+        'tipo_entrega',      // mostrador | domicilio
+        'estado',            // pendiente, preparando, listo, en_camino, entregado, cancelado
         'observaciones',
+        'total',
+        'asignado_a',        // id de repartidor (users.id)
+
+        // Datos de envío a domicilio (coinciden con la BD real)
+        'entrega_nombre',
+        'entrega_telefono',
+        'entrega_calle',
+        'entrega_numero',
+        'entrega_colonia',
+        'entrega_municipio',
+        'entrega_referencias',
+
+        // JSON opcional con el bloque de domicilio
+        'dom',
+
+        // Otros
+        'motivo_cancelacion',
     ];
 
     protected $casts = [
-        'total' => 'float',
+        'dom'   => 'array',
+        'total' => 'decimal:2',
     ];
 
-    /** Items del pedido */
+    /* Relaciones */
     public function items(): HasMany
     {
-        return $this->hasMany(\App\Models\PedidoItem::class, 'pedido_id');
+        return $this->hasMany(PedidoItem::class, 'pedido_id');
     }
 
-    /** Usuario repartidor asignado (users.id = asignado_a) */
     public function repartidor(): BelongsTo
     {
-        return $this->belongsTo(\App\Models\User::class, 'asignado_a');
+        return $this->belongsTo(User::class, 'asignado_a');
     }
 
-    /** Bitácora del pedido */
+    public function cliente(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'id_cliente');
+    }
+
     public function logs(): HasMany
     {
-        return $this->hasMany(\App\Models\PedidoLog::class, 'pedido_id')->latest('id');
+        return $this->hasMany(PedidoLog::class, 'pedido_id');
     }
 }

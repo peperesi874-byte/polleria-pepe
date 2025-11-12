@@ -10,12 +10,10 @@ use App\Services\BitacoraService;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Arr;
 
-// Inventario automático por piezas
 use App\Models\Inventario;
 use App\Models\InventarioMovimiento;
-
-// Notificaciones in-app
 use App\Services\Notify;
 
 class PedidoController extends Controller
@@ -23,7 +21,6 @@ class PedidoController extends Controller
     /** Listado con filtros (Admin y Vendedor) */
     public function index(Request $request)
     {
-        // Parámetros de query string
         $estado   = trim((string) $request->query('estado', ''));
         $q        = trim((string) $request->query('q', ''));
         $asignado = trim((string) $request->query('asignado', '')); // '', 'none', 'any'
@@ -32,17 +29,10 @@ class PedidoController extends Controller
             ->withCount('items')
             ->with(['repartidor:id,name']);
 
-        if ($estado !== '') {
-            $query->where('estado', $estado);
-        }
+        if ($estado !== '') $query->where('estado', $estado);
+        if ($asignado === 'none') $query->whereNull('asignado_a');
+        elseif ($asignado === 'any') $query->whereNotNull('asignado_a');
 
-        if ($asignado === 'none') {
-            $query->whereNull('asignado_a');
-        } elseif ($asignado === 'any') {
-            $query->whereNotNull('asignado_a');
-        }
-
-        // 🔎 Búsqueda insensible a mayúsculas/minúsculas
         if ($q !== '') {
             $qLower = mb_strtolower($q, 'UTF-8');
             $query->where(function ($w) use ($qLower) {
@@ -80,7 +70,69 @@ class PedidoController extends Controller
         ]);
     }
 
-    /** Detalle (Admin y Vendedor) — usa vista compartida Pedidos/Show */
+    /** CREAR pedido (Admin y Vendedor) */
+    public function store(Request $request)
+    {
+        $data = $request->validate([
+            'id_cliente'       => ['nullable','exists:users,id'],
+            'tipo_entrega'     => ['required','in:mostrador,domicilio'],
+            'estado'           => ['nullable','in:pendiente,preparando,listo,en_camino,entregado,cancelado'],
+            'observaciones'    => ['nullable','string'],
+            'total'            => ['required','numeric','min:0'],
+
+            'entrega_nombre'      => ['nullable','string','max:100'],
+            'entrega_telefono'    => ['nullable','string','max:20'],
+            'entrega_calle'       => ['nullable','string','max:100'],
+            'entrega_numero'      => ['nullable','string','max:20'],
+            'entrega_colonia'     => ['nullable','string','max:80'],
+            'entrega_municipio'   => ['nullable','string','max:80'],
+            'entrega_referencias' => ['nullable','string','max:150'],
+
+            'dom' => ['nullable','array'],
+        ]);
+
+        $data['estado'] = $data['estado'] ?? 'pendiente';
+
+        if (!empty($data['dom']) && is_array($data['dom'])) {
+            $data['entrega_nombre']      = $data['entrega_nombre']      ?? Arr::get($data, 'dom.nombre');
+            $data['entrega_telefono']    = $data['entrega_telefono']    ?? Arr::get($data, 'dom.telefono');
+
+            if (empty($data['entrega_calle']) && empty($data['entrega_numero'])) {
+                $direccion = (string) Arr::get($data, 'dom.direccion', '');
+                [$calle, $numero] = array_pad(array_map('trim', explode('#', $direccion, 2)), 2, null);
+                $data['entrega_calle']  = $data['entrega_calle']  ?? $calle;
+                $data['entrega_numero'] = $data['entrega_numero'] ?? $numero;
+            }
+
+            $data['entrega_colonia']     = $data['entrega_colonia']     ?? Arr::get($data, 'dom.colonia');
+            $data['entrega_municipio']   = $data['entrega_municipio']   ?? Arr::get($data, 'dom.ciudad');
+            $data['entrega_referencias'] = $data['entrega_referencias'] ?? Arr::get($data, 'dom.referencias');
+        }
+
+        if (($data['tipo_entrega'] ?? 'mostrador') === 'mostrador') {
+            $data = array_merge($data, [
+                'entrega_nombre'      => null,
+                'entrega_telefono'    => null,
+                'entrega_calle'       => null,
+                'entrega_numero'      => null,
+                'entrega_colonia'     => null,
+                'entrega_municipio'   => null,
+                'entrega_referencias' => null,
+                'dom'                 => null,
+            ]);
+        }
+
+        $pedido = Pedido::create($data);
+
+        BitacoraService::add('pedidos', 'crear', $pedido->id, [
+            'total'        => $pedido->total,
+            'tipo_entrega' => $pedido->tipo_entrega,
+        ]);
+
+        return redirect()->route('admin.pedidos.show', $pedido)->with('ok', 'Pedido creado correctamente');
+    }
+
+    /** Detalle (Admin y Vendedor) */
     public function show(Request $request, Pedido $pedido)
     {
         $pedido->load([
@@ -96,6 +148,24 @@ class PedidoController extends Controller
 
         $role = $request->routeIs('vendedor.*') ? 'vendedor' : 'admin';
 
+        $dom = is_array($pedido->dom) ? $pedido->dom
+            : ($pedido->dom ? json_decode((string) $pedido->dom, true) : null);
+
+        $entregaDireccion = trim(
+            trim((string) ($pedido->entrega_calle ?? '')) .
+            (isset($pedido->entrega_numero) && $pedido->entrega_numero !== '' ? ' #' . trim((string) $pedido->entrega_numero) : '')
+        );
+
+        // Bloque agrupado para la vista
+        $envio = [
+            'nombre'      => $pedido->entrega_nombre      ?? ($dom['nombre']      ?? null),
+            'telefono'    => $pedido->entrega_telefono    ?? ($dom['telefono']    ?? null),
+            'direccion'   => ($entregaDireccion !== '' ? $entregaDireccion : ($dom['direccion'] ?? null)),
+            'colonia'     => $pedido->entrega_colonia     ?? ($dom['colonia']     ?? null),
+            'ciudad'      => $pedido->entrega_municipio   ?? ($dom['ciudad']      ?? null),
+            'referencias' => $pedido->entrega_referencias ?? ($dom['referencias'] ?? null),
+        ];
+
         return Inertia::render('Pedidos/Show', [
             'role' => $role,
             'pedido' => [
@@ -107,14 +177,29 @@ class PedidoController extends Controller
                 'observaciones' => $pedido->observaciones,
                 'created_at'    => $pedido->created_at?->format('Y-m-d H:i'),
                 'asignado_a'    => $pedido->asignado_a,
-                'items'         => $pedido->items->map(fn ($it) => [
+
+                // planas
+                'entrega_nombre'      => $envio['nombre'],
+                'entrega_telefono'    => $envio['telefono'],
+                'entrega_calle'       => $pedido->entrega_calle,
+                'entrega_numero'      => $pedido->entrega_numero,
+                'entrega_colonia'     => $envio['colonia'],
+                'entrega_municipio'   => $envio['ciudad'],
+                'entrega_referencias' => $envio['referencias'],
+                'entrega_direccion'   => $envio['direccion'],
+                'dom'                 => $dom,
+
+                // agrupado
+                'envio'               => $envio,
+
+                'items' => $pedido->items->map(fn ($it) => [
                     'id'        => (int) $it->id,
                     'producto'  => $it->producto?->nombre ?? '—',
                     'cantidad'  => (int) $it->cantidad,
                     'precio'    => (float) $it->precio_unitario,
                     'subtotal'  => (float) $it->subtotal,
                 ]),
-                'logs'          => $pedido->logs->map(fn ($log) => [
+                'logs' => $pedido->logs->map(fn ($log) => [
                     'id'     => (int) $log->id,
                     'accion' => $log->accion,
                     'de'     => $log->de,
@@ -144,7 +229,6 @@ class PedidoController extends Controller
         $anterior = $pedido->estado;
         $nuevo    = $data['estado'];
 
-        // Pre-chequeo de stock si se va a descontar
         if (in_array($nuevo, ['listo', 'entregado'], true)) {
             $pedido->loadMissing('items.producto');
             foreach ($pedido->items as $it) {
@@ -161,10 +245,8 @@ class PedidoController extends Controller
         }
 
         DB::transaction(function () use ($pedido, $anterior, $nuevo) {
-            // a) Actualizar estado
             $pedido->update(['estado' => $nuevo]);
 
-            // b) Descontar por piezas (idempotente)
             if (in_array($nuevo, ['listo', 'entregado'], true)) {
                 $pedido->loadMissing('items.producto');
 
@@ -177,9 +259,7 @@ class PedidoController extends Controller
                         ->where('motivo', 'pedido:' . $pedido->id)
                         ->exists();
 
-                    if ($yaAplicado) {
-                        continue;
-                    }
+                    if ($yaAplicado) continue;
 
                     $inv = Inventario::firstOrCreate(
                         ['producto_id' => $prodId],
@@ -199,7 +279,6 @@ class PedidoController extends Controller
                         'stock_resultante' => $nuevoStock,
                     ]);
 
-                    // Notificación de bajo stock
                     if ($nuevoStock <= (int) ($inv->stock_minimo ?? 0)) {
                         $nombre = $it->producto?->nombre ?? ('ID ' . $prodId);
                         try {
@@ -211,7 +290,6 @@ class PedidoController extends Controller
                 }
             }
 
-            // c) Log del pedido
             PedidoLog::create([
                 'pedido_id' => $pedido->id,
                 'user_id'   => auth()->id(),
@@ -220,14 +298,12 @@ class PedidoController extends Controller
                 'a'         => $nuevo,
             ]);
 
-            // d) Bitácora
             BitacoraService::add('pedidos', 'estado_cambiado', $pedido->id, [
                 'de'     => $anterior,
                 'a'      => $nuevo,
                 'unidad' => 'piezas',
             ]);
 
-            // e) Notificación in-app
             try {
                 Notify::pedidoEstado($pedido, $anterior, $nuevo);
             } catch (\Throwable $e) {
@@ -238,7 +314,6 @@ class PedidoController extends Controller
         return back()->with('success', 'Estado actualizado.');
     }
 
-    /** Alias para admin.pedidos.estado */
     public function updateEstado(Request $request, Pedido $pedido)
     {
         return $this->setEstado($request, $pedido);
@@ -258,13 +333,11 @@ class PedidoController extends Controller
         $anterior = $pedido->estado;
 
         DB::transaction(function () use ($pedido, $data, $anterior) {
-            // a) Estado cancelado
             $pedido->update([
                 'estado'             => 'cancelado',
                 'motivo_cancelacion' => $data['motivo'],
             ]);
 
-            // b) Reposición por piezas (idempotente)
             $pedido->loadMissing('items');
             foreach ($pedido->items as $it) {
                 $prodId = (int) $it->producto_id;
@@ -297,7 +370,6 @@ class PedidoController extends Controller
                 }
             }
 
-            // c) Log
             PedidoLog::create([
                 'pedido_id' => $pedido->id,
                 'user_id'   => auth()->id(),
@@ -307,7 +379,6 @@ class PedidoController extends Controller
                 'motivo'    => $data['motivo'],
             ]);
 
-            // d) Bitácora
             BitacoraService::add('pedidos', 'cancelado', $pedido->id, [
                 'de'     => $anterior,
                 'a'      => 'cancelado',
@@ -315,7 +386,6 @@ class PedidoController extends Controller
                 'unidad' => 'piezas',
             ]);
 
-            // e) Notificación
             try {
                 Notify::pedidoCancelado($pedido, $data['motivo']);
             } catch (\Throwable $e) {
@@ -366,7 +436,6 @@ class PedidoController extends Controller
             'a'  => $nuevo,
         ]);
 
-        // Notificación
         try {
             Notify::pedidoAsignacion($pedido, $antes ?? null, $despues);
         } catch (\Throwable $e) {

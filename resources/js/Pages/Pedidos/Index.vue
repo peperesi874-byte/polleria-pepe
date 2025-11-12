@@ -2,13 +2,14 @@
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue'
 import { Link, router } from '@inertiajs/vue3'
 import { ref, watch, onBeforeUnmount, computed } from 'vue'
+import { route } from 'ziggy-js'
 
 const props = defineProps({
   role: { type: String, default: 'admin' }, // 'admin' | 'vendedor'
-  pedidos: Object,                           // paginator
+  pedidos: Object,
   q: String,
   estado: String,
-  asignado: String,                          // '', 'any', 'none'
+  asignado: String,
   estados: Array,
 })
 
@@ -18,8 +19,7 @@ const q        = ref(props.q ?? '')
 const estado   = ref(props.estado ?? '')
 const asignado = ref(props.asignado ?? '')
 
-// helpers
-const money = (n) =>
+const money = n =>
   new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' }).format(Number(n ?? 0))
 
 function pillColor(e) {
@@ -29,16 +29,16 @@ function pillColor(e) {
     case 'listo':      return 'bg-blue-100 text-blue-700'
     case 'en_camino':  return 'bg-indigo-100 text-indigo-700'
     case 'preparando': return 'bg-amber-100 text-amber-700'
-    default:           return 'bg-amber-100 text-amber-700'
+    default:           return 'bg-gray-100 text-gray-700'
   }
 }
 
 let t = null
 const pushFilters = () => {
   const params = {}
-  if ((q.value ?? '') !== '')        params.q = q.value
-  if ((estado.value ?? '') !== '')   params.estado = estado.value
-  if ((asignado.value ?? '') !== '') params.asignado = asignado.value
+  if (q.value) params.q = q.value
+  if (estado.value) params.estado = estado.value
+  if (asignado.value) params.asignado = asignado.value
 
   router.get(route(base.value + '.pedidos.index'), params, {
     preserveState: true,
@@ -55,26 +55,41 @@ onBeforeUnmount(() => clearTimeout(t))
 </script>
 
 <template>
-  <!-- ENVUELTO EN EL LAYOUT PARA MOSTRAR LA BARRA DE MÓDULOS -->
   <AuthenticatedLayout>
-    <!-- ===== Barra superior estilo “módulos” (igual a Inventario) ===== -->
+    <!-- ===== ENCABEZADO ===== -->
     <template #header>
       <div
         class="flex items-center justify-between rounded-2xl border bg-gradient-to-r from-indigo-50 to-white px-4 py-4 ring-1 ring-indigo-100/60"
       >
         <div class="flex items-center gap-3">
-          <div class="grid h-10 w-10 place-items-center rounded-xl bg-indigo-100 text-indigo-700 text-lg">🧺</div>
+          <div class="grid h-10 w-10 place-items-center rounded-xl bg-indigo-100 text-indigo-700 text-lg">
+            🧺
+          </div>
           <div>
-            <h1 class="text-2xl font-bold text-gray-900">Pedidos</h1>
-            <p class="text-sm text-gray-500">Gestión y seguimiento de pedidos del sistema.</p>
+            <h1 class="text-2xl font-bold text-gray-900">
+              {{ base === 'vendedor' ? 'Pedidos en mostrador' : 'Gestión de pedidos' }}
+            </h1>
+            <p class="text-sm text-gray-500">
+              {{ base === 'vendedor'
+                ? 'Registra y controla los pedidos de clientes presenciales.'
+                : 'Supervisa y administra los pedidos de todo el sistema.' }}
+            </p>
           </div>
         </div>
 
-        <div class="flex items-center gap-2">
+        <div class="flex items-center gap-3">
+          <!-- Solo el vendedor ve el botón para crear pedido -->
+          <Link
+            v-if="base === 'vendedor'"
+            :href="route('vendedor.pedidos.create')"
+            class="inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700"
+          >
+            + Nuevo pedido
+          </Link>
+
           <Link
             :href="route(base + '.dashboard')"
             class="text-sm text-indigo-600 hover:underline"
-            v-if="$page?.props?.auth"
           >
             ← Volver al panel
           </Link>
@@ -82,7 +97,7 @@ onBeforeUnmount(() => clearTimeout(t))
       </div>
     </template>
 
-    <!-- ===== Contenido original intacto ===== -->
+    <!-- ===== CONTENIDO ===== -->
     <div class="max-w-7xl mx-auto px-6 py-8">
       <!-- Filtros -->
       <div class="mb-5 flex flex-wrap items-center gap-3">
@@ -95,7 +110,7 @@ onBeforeUnmount(() => clearTimeout(t))
 
         <select v-model="estado" class="rounded-lg border-gray-300 px-3 py-2 focus:ring-indigo-400">
           <option value="">Todos los estados</option>
-          <option v-for="e in estados" :key="e" :value="e">{{ (e || '').replace('_',' ') }}</option>
+          <option v-for="e in estados" :key="e" :value="e">{{ e.replace('_', ' ') }}</option>
         </select>
 
         <select v-model="asignado" class="rounded-lg border-gray-300 px-3 py-2 focus:ring-indigo-400">

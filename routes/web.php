@@ -22,6 +22,7 @@ use App\Http\Controllers\Vendedor\DashboardController as VendedorDashboardContro
 use App\Http\Controllers\Vendedor\ReportesOperativosController;
 use App\Http\Controllers\Vendedor\ClienteRapidoController;
 use App\Http\Controllers\Vendedor\PedidoCrearController;
+use App\Http\Controllers\Vendedor\PedidoTicketController as VendedorPedidoTicketController;
 
 // Perfil (Breeze)
 use App\Http\Controllers\ProfileController;
@@ -94,14 +95,26 @@ Route::prefix('admin')
             Route::delete('/usuarios/{user}', 'destroy')->name('usuarios.destroy');
         });
 
-        // Pedidos (admin)
+        /*
+        |--------------------------------------------------------------------------
+        | PEDIDOS (ADMIN)
+        |--------------------------------------------------------------------------
+        */
         Route::resource('pedidos', AdminPedidoController::class)
             ->only(['index', 'show'])
             ->names('pedidos');
 
-        Route::put('/pedidos/{pedido}/estado', [AdminPedidoController::class, 'setEstado'])->name('pedidos.estado');
+        // Crear pedido desde admin
+        Route::post('/pedidos', [AdminPedidoController::class, 'store'])->name('pedidos.store');
+
+        Route::put('/pedidos/{pedido}/estado',   [AdminPedidoController::class, 'setEstado'])->name('pedidos.estado');
         Route::put('/pedidos/{pedido}/cancelar', [AdminPedidoController::class, 'cancelar'])->name('pedidos.cancelar');
-        Route::put('/pedidos/{pedido}/asignar', [AdminPedidoController::class, 'asignar'])->name('pedidos.asignar');
+        Route::put('/pedidos/{pedido}/asignar',  [AdminPedidoController::class, 'asignar'])->name('pedidos.asignar');
+
+        // ⬇️ Ticket (ADMIN)
+        Route::get('/pedidos/{pedido}/ticket', [VendedorPedidoTicketController::class, 'show'])
+            ->whereNumber('pedido')
+            ->name('pedidos.ticket');
 
         // Inventario
         Route::get('/inventario', [InventarioController::class, 'index'])->name('inventario.index');
@@ -119,12 +132,9 @@ Route::prefix('admin')
         Route::get('/notificaciones', [NotificacionesController::class, 'index'])->name('notificaciones.index');
         Route::patch('/notificaciones/{n}/leer', [NotificacionesController::class, 'markRead'])->name('notificaciones.read');
         Route::patch('/notificaciones/leer-todas', [NotificacionesController::class, 'markAllRead'])->name('notificaciones.read_all');
-        // dentro del grupo admin
-Route::get(
-    '/inventario/movimientos/export/csv',
-    [InventarioController::class, 'exportMovimientosCSV']
-)->name('inventario.historial.csv');
 
+        Route::get('/inventario/movimientos/export/csv', [InventarioController::class, 'exportMovimientosCSV'])
+            ->name('inventario.historial.csv');
     });
 
 /*
@@ -148,18 +158,16 @@ Route::prefix('vendedor')
 
         /*
         |--------------------------------------------------------------------------
-        | RUTAS DE PEDIDOS
+        | RUTAS DE PEDIDOS (VENDEDOR)
         |--------------------------------------------------------------------------
         */
-
-        // ⚠️ Primero las rutas estáticas de creación
         Route::get('/pedidos/create', [PedidoCrearController::class, 'create'])->name('pedidos.create');
         Route::post('/pedidos', [PedidoCrearController::class, 'store'])->name('pedidos.store');
 
         // Listado general de pedidos
         Route::get('/pedidos', [AdminPedidoController::class, 'index'])->name('pedidos.index');
 
-        // Detalle y acciones (solo IDs numéricos)
+        // Detalle y acciones
         Route::get('/pedidos/{pedido}', [AdminPedidoController::class, 'show'])
             ->whereNumber('pedido')->name('pedidos.show');
 
@@ -171,4 +179,64 @@ Route::prefix('vendedor')
 
         Route::put('/pedidos/{pedido}/asignar', [AdminPedidoController::class, 'asignar'])
             ->whereNumber('pedido')->name('pedidos.asignar');
+
+        // ⬇️ Ticket (VENDEDOR) — (única, sin duplicados)
+        Route::get('/pedidos/{pedido}/ticket', [VendedorPedidoTicketController::class, 'show'])
+            ->whereNumber('pedido')
+            ->name('pedidos.ticket');
+    });
+
+/*
+|--------------------------------------------------------------------------
+| VENDEDOR (role_id = 2)
+|--------------------------------------------------------------------------
+*/
+Route::prefix('vendedor')
+    ->as('vendedor.')
+    ->middleware(['auth', 'verified', 'role:2'])
+    ->group(function () {
+
+        // Panel principal del vendedor
+        Route::get('/dashboard', [VendedorDashboardController::class, 'index'])->name('dashboard');
+
+        // Reporte operativo
+        Route::get('/reportes/operativos', [ReportesOperativosController::class, 'index'])->name('reportes.operativos');
+
+        // Alta rápida de cliente (desde el form de pedido)
+        Route::post('/clientes/rapido', [ClienteRapidoController::class, 'store'])->name('clientes.rapido.store');
+
+        Route::get('/pedidos/{pedido}/ticket', [VendedorPedidoTicketController::class, 'show'])
+    ->whereNumber('pedido')
+    ->name('pedidos.ticket');
+
+        /*
+        |--------------------------------------------------------------------------
+        | RUTAS DE PEDIDOS (VENDEDOR)
+        |--------------------------------------------------------------------------
+        */
+        Route::get('/pedidos/create', [PedidoCrearController::class, 'create'])->name('pedidos.create');
+        Route::post('/pedidos', [PedidoCrearController::class, 'store'])->name('pedidos.store');
+
+        // Listado general de pedidos
+        Route::get('/pedidos', [AdminPedidoController::class, 'index'])->name('pedidos.index');
+
+        // Detalle y acciones
+        Route::get('/pedidos/{pedido}', [AdminPedidoController::class, 'show'])
+            ->whereNumber('pedido')->name('pedidos.show');
+
+        Route::put('/pedidos/{pedido}/estado', [AdminPedidoController::class, 'setEstado'])
+            ->whereNumber('pedido')->name('pedidos.estado');
+
+        Route::put('/pedidos/{pedido}/cancelar', [AdminPedidoController::class, 'cancelar'])
+            ->whereNumber('pedido')->name('pedidos.cancelar');
+
+        Route::put('/pedidos/{pedido}/asignar', [AdminPedidoController::class, 'asignar'])
+            ->whereNumber('pedido')->name('pedidos.asignar');
+          
+           // ticket
+Route::get('/pedidos/{pedido}/ticket', [VendedorPedidoTicketController::class, 'show'])
+    ->whereNumber('pedido')
+    ->name('pedidos.ticket');
+
+
     });

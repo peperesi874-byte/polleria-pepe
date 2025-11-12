@@ -1,13 +1,18 @@
 <script setup>
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue'
 import { Link, router } from '@inertiajs/vue3'
-import { ref, watch } from 'vue'
+import { ref, watch, computed } from 'vue'
+import { route } from 'ziggy-js' // 👈 Asegura Ziggy por import nombrado
 
 const props = defineProps({
+  role: { type: String, default: 'admin' }, // 👈 viene del controlador (admin|vendedor)
   pedidos: Object,        // paginator
   filters: Object,        // { q, estado, asignado }
   estados: Array,
 })
+
+/* --------- Prefijo por rol (admin. | vendedor.) --------- */
+const prefix = computed(() => (props.role === 'vendedor' ? 'vendedor.' : 'admin.'))
 
 /* ---------------- Filtros con debounce ---------------- */
 const q        = ref(props.filters?.q ?? '')
@@ -19,7 +24,7 @@ watch([q, estado, asignado], () => {
   clearTimeout(t)
   t = setTimeout(() => {
     router.get(
-      route('admin.pedidos.index'),
+      route(prefix.value + 'pedidos.index'), // 👈 usa el grupo correcto
       { q: q.value, estado: estado.value, asignado: asignado.value },
       { preserveState: true, replace: true }
     )
@@ -52,43 +57,41 @@ const btn = (variant = 'solid') =>
 <template>
   <AuthenticatedLayout>
     <!-- ===== HEADER UNIFICADO (tipo Reportes/Inventario) ===== -->
-     <template #header>
-  <!-- Wrapper bonito -->
-  <div
-    class="rounded-2xl border border-gray-200 bg-gradient-to-r from-indigo-50 to-white px-6 py-4 shadow-sm flex items-center justify-between"
-  >
-    <!-- IZQUIERDA -->
-    <div class="flex items-center gap-4">
-      <!-- Icono redondo -->
-      <div class="h-12 w-12 flex items-center justify-center rounded-xl bg-indigo-100 text-indigo-700">
-        <!-- icono de pedidos -->
-        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" viewBox="0 0 24 24" fill="currentColor">
-          <path d="M3 3h18v2H3zm2 4h14l-1.5 14h-11z"/>
-        </svg>
-      </div>
-
-      <!-- Títulos -->
-      <div>
-        <h2 class="text-2xl font-semibold text-gray-900">Pedidos</h2>
-        <p class="text-sm text-gray-500">
-          Gestión y seguimiento de pedidos del sistema.
-        </p>
-      </div>
-    </div>
-
-    <!-- DERECHA -->
-    <div class="flex items-center gap-2">
-      <Link
-        :href="route('admin.dashboard')"
-        class="text-sm text-indigo-600 hover:underline"
+    <template #header>
+      <!-- Wrapper bonito -->
+      <div
+        class="rounded-2xl border border-gray-200 bg-gradient-to-r from-indigo-50 to-white px-6 py-4 shadow-sm flex items-center justify-between"
       >
-        ← Volver al panel
-      </Link>
-    </div>
-  </div>
-</template>
+        <!-- IZQUIERDA -->
+        <div class="flex items-center gap-4">
+          <!-- Icono redondo -->
+          <div class="h-12 w-12 flex items-center justify-center rounded-xl bg-indigo-100 text-indigo-700">
+            <!-- icono de pedidos -->
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M3 3h18v2H3zm2 4h14l-1.5 14h-11z"/>
+            </svg>
+          </div>
 
+          <!-- Títulos -->
+          <div>
+            <h2 class="text-2xl font-semibold text-gray-900">Pedidos</h2>
+            <p class="text-sm text-gray-500">
+              Gestión y seguimiento de pedidos del sistema.
+            </p>
+          </div>
+        </div>
 
+        <!-- DERECHA -->
+        <div class="flex items-center gap-2">
+          <Link
+            :href="route(prefix + 'dashboard')"  <!-- 👈 vuelve al dashboard correcto -->
+            class="text-sm text-indigo-600 hover:underline"
+          >
+            ← Volver al panel
+          </Link>
+        </div>
+      </div>
+    </template>
 
     <!-- ===== CONTENIDO ===== -->
     <div class="max-w-7xl mx-auto px-6 py-8">
@@ -170,7 +173,7 @@ const btn = (variant = 'solid') =>
 
               <td class="px-4 py-3 text-right">
                 <Link
-                  :href="route('admin.pedidos.show', p.id)"
+                  :href="route(prefix + 'pedidos.show', p.id)"  <!-- 👈 detalle con prefijo por rol -->
                   class="inline-flex items-center gap-1 rounded-lg border border-indigo-200 px-3 py-1.5 text-indigo-700 hover:bg-indigo-50"
                 >
                   Ver detalle →

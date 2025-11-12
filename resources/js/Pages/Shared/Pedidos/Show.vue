@@ -1,29 +1,46 @@
 <script setup>
+import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue'
 import { Link, router } from '@inertiajs/vue3'
 import { ref, computed } from 'vue'
-import { route as ziggy } from 'ziggy-js'
+import { route } from 'ziggy-js'
 
 const props = defineProps({
-  role: { type: String, default: 'admin' },     // 'admin' | 'vendedor'
+  role: { type: String, default: 'admin' },
   pedido: { type: Object, required: true },
-  repartidores: { type: Array, default: () => [] },
+  repartidores: { type: Array, default: () => [] }
 })
+
+const prefix = computed(() => (props.role === 'vendedor' ? 'vendedor.' : 'admin.'))
 
 const processing = ref(false)
 const money = n => new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' }).format(n ?? 0)
 
 const estadoActual = computed(() => props.pedido?.estado ?? 'pendiente')
-const bloqueado = computed(() => estadoActual.value === 'cancelado' || estadoActual.value === 'entregado')
+const bloqueado = computed(() => ['cancelado', 'entregado'].includes(estadoActual.value))
 
-// Base de rutas según el rol que manda el backend (más confiable que route().current)
-const base = computed(() => (props.role === 'vendedor' ? 'vendedor' : 'admin'))
+const estadosOrden = ['pendiente','preparando','listo','en_camino','entregado']
+const estadoLabel  = e => (e || '').replace('_',' ')
+const stepIndex    = computed(() => Math.max(0, estadosOrden.indexOf(estadoActual.value)))
 
+const pillEstado = (e) => {
+  const m = {
+    cancelado : 'bg-rose-100 text-rose-700',
+    entregado : 'bg-green-100 text-green-700',
+    en_camino : 'bg-indigo-100 text-indigo-700',
+    listo     : 'bg-blue-100 text-blue-700',
+    preparando: 'bg-amber-100 text-amber-700',
+    pendiente : 'bg-gray-100 text-gray-700',
+  }
+  return m[e] || 'bg-gray-100 text-gray-700'
+}
+
+/* Acciones */
 function setEstado(estado) {
   if (bloqueado.value) return alert('El pedido ya no permite cambios.')
   if (estado === estadoActual.value) return
   processing.value = true
   router.put(
-    ziggy(`${base.value}.pedidos.estado`, props.pedido.id),
+    route(prefix.value + 'pedidos.estado', props.pedido.id),
     { estado },
     { preserveScroll: true, preserveState: true, onFinish: () => (processing.value = false) }
   )
@@ -35,7 +52,7 @@ function doCancelar() {
   if (!motivo) return
   processing.value = true
   router.put(
-    ziggy(`${base.value}.pedidos.cancelar`, props.pedido.id),
+    route(prefix.value + 'pedidos.cancelar', props.pedido.id),
     { motivo },
     { preserveScroll: true, preserveState: true, onFinish: () => (processing.value = false) }
   )
@@ -46,169 +63,257 @@ function asignar(val) {
   const repartidor_id = val ? Number(val) : null
   processing.value = true
   router.put(
-    ziggy(`${base.value}.pedidos.asignar`, props.pedido.id),
+    route(prefix.value + 'pedidos.asignar', props.pedido.id),
     { repartidor_id },
     { preserveScroll: true, preserveState: true, onFinish: () => (processing.value = false) }
   )
 }
+
+/* Bitácora helpers */
+const actionBadge = (a = '') => {
+  a = a.toLowerCase()
+  if (a === 'estado_cambiado') return 'bg-amber-100 text-amber-800'
+  if (a === 'asignado' || a === 'desasignado') return 'bg-blue-100 text-blue-800'
+  if (a === 'cancelado') return 'bg-rose-100 text-rose-800'
+  return 'bg-gray-100 text-gray-700'
+}
+const actionIcon = (a = '') => {
+  a = a.toLowerCase()
+  if (a === 'estado_cambiado') return '🪄'
+  if (a === 'asignado' || a === 'desasignado') return '👤'
+  if (a === 'cancelado') return '⛔'
+  return '📝'
+}
+const actionLabel = (a = '') => (a || '').replaceAll('_',' ').toUpperCase()
 </script>
 
 <template>
-  <div class="max-w-5xl mx-auto px-6 py-8">
-    <!-- Header -->
-    <div class="mb-6 flex items-center justify-between gap-3">
-      <div>
-        <h1 class="text-2xl md:text-3xl font-semibold text-indigo-800">
-          Pedido #{{ pedido.id }}
-          <span v-if="pedido.folio" class="text-gray-400">({{ pedido.folio }})</span>
-        </h1>
-        <p class="text-gray-500">Creado: {{ pedido.created_at }}</p>
-      </div>
-
-      <Link
-        :href="ziggy(`${base}.pedidos.index`)"
-        class="text-indigo-600 hover:text-indigo-700 font-medium"
-      >
-        ← Volver a la lista
-      </Link>
-    </div>
-
-    <!-- Acciones -->
-    <div class="mb-6 grid gap-4 md:grid-cols-2">
-      <div class="rounded-xl border bg-white p-4">
-        <p class="mb-3 text-sm text-gray-500">Cambiar estado</p>
-        <div class="flex flex-wrap gap-2">
-          <button class="rounded-md bg-amber-600 px-3 py-1.5 text-white hover:bg-amber-700 disabled:opacity-50"
-                  :disabled="processing || bloqueado || estadoActual==='preparando'"
-                  @click="setEstado('preparando')">Preparando</button>
-
-          <button class="rounded-md bg-blue-600 px-3 py-1.5 text-white hover:bg-blue-700 disabled:opacity-50"
-                  :disabled="processing || bloqueado || estadoActual==='listo'"
-                  @click="setEstado('listo')">Listo</button>
-
-          <button class="rounded-md bg-indigo-600 px-3 py-1.5 text-white hover:bg-indigo-700 disabled:opacity-50"
-                  :disabled="processing || bloqueado || estadoActual==='en_camino'"
-                  @click="setEstado('en_camino')">En camino</button>
-
-          <button class="rounded-md bg-green-600 px-3 py-1.5 text-white hover:bg-green-700 disabled:opacity-50"
-                  :disabled="processing || estadoActual==='entregado'"
-                  @click="setEstado('entregado')">Entregado</button>
-        </div>
-      </div>
-
-      <div class="rounded-xl border bg-white p-4">
-        <p class="mb-3 text-sm text-gray-500">Asignación y cancelación</p>
-        <div class="flex flex-wrap items-center gap-3">
-          <div class="relative">
-            <select
-              class="w-56 rounded-lg border border-gray-300 bg-white px-3 py-2 pr-9 text-sm
-                     focus:outline-none focus:ring-2 focus:ring-indigo-500 appearance-none disabled:opacity-50"
-              :disabled="processing || estadoActual==='cancelado'"
-              :value="pedido.asignado_a || ''"
-              @change="asignar($event.target.value)"
-            >
-              <option value="">— Sin asignar —</option>
-              <option v-for="r in repartidores" :key="r.id" :value="r.id">{{ r.name }}</option>
-            </select>
-            <svg class="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-500"
-                 xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
-              <path fill-rule="evenodd"
-                    d="M5.23 7.21a.75.75 0 011.06.02L10 10.94l3.71-3.71a.75.75 0 111.08 1.04l-4.25 4.25a.75.75 0 01-1.08 0L5.21 8.27a.75.75 0 01.02-1.06z"
-                    clip-rule="evenodd" />
-            </svg>
+  <AuthenticatedLayout>
+    <template #header>
+      <div class="flex items-center justify-between rounded-2xl bg-gradient-to-r from-indigo-50 to-white px-4 py-4 ring-1 ring-indigo-100/60 border">
+        <div class="flex items-center gap-3">
+          <div class="grid h-10 w-10 place-items-center rounded-xl bg-indigo-100 text-indigo-700 text-lg">PP</div>
+          <div>
+            <h2 class="text-2xl font-bold text-gray-900">
+              Pedido #{{ pedido.id }}
+              <span v-if="pedido.folio" class="ml-1 text-base text-gray-500">({{ pedido.folio }})</span>
+            </h2>
+            <p class="text-sm text-gray-500">Creado: {{ pedido.created_at }}</p>
           </div>
+        </div>
 
-          <p v-if="repartidores.length === 0" class="text-sm text-gray-500">
-            No hay repartidores registrados (rol Repartidor).
-          </p>
-
-          <button class="ml-auto rounded-md bg-rose-600 px-3 py-1.5 text-white hover:bg-rose-700 disabled:opacity-50"
-                  :disabled="processing || estadoActual==='entregado'"
-                  @click="doCancelar">Cancelar pedido</button>
+        <div class="flex items-center gap-2">
+          <Link
+            :href="route(prefix + 'pedidos.index')"
+            class="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 hover:bg-gray-50"
+          >
+            ← Volver a la lista
+          </Link>
+          <button
+            class="rounded-lg bg-rose-600 px-4 py-2 text-sm font-semibold text-white hover:bg-rose-700 disabled:opacity-50"
+            :disabled="processing || estadoActual==='entregado'"
+            @click="doCancelar"
+          >
+            Cancelar pedido
+          </button>
         </div>
       </div>
-    </div>
+    </template>
 
-    <!-- Resumen -->
-    <div class="grid md:grid-cols-4 gap-4 mb-6">
-      <div class="rounded-xl border bg-white p-4">
-        <p class="text-sm text-gray-500">Estado</p>
-        <p class="text-lg font-semibold capitalize">{{ pedido.estado.replace('_',' ') }}</p>
+    <div class="mx-auto max-w-7xl px-6 py-8 space-y-6">
+      <div class="rounded-2xl border bg-white p-4 shadow-sm">
+        <div class="mb-3">
+          <span class="rounded-full px-2.5 py-1 text-xs font-semibold" :class="pillEstado(estadoActual)">
+            {{ estadoLabel(estadoActual) }}
+          </span>
+        </div>
+        <div class="relative">
+          <div class="h-2 w-full rounded-full bg-gray-100"></div>
+          <div
+            class="absolute inset-y-0 left-0 h-2 rounded-full bg-indigo-500 transition-all"
+            :style="{ width: ((stepIndex + 1) / estadosOrden.length) * 100 + '%' }"
+          />
+          <div class="mt-3 grid grid-cols-5 text-[11px] text-gray-600">
+            <span v-for="e in estadosOrden" :key="e" class="text-center capitalize">{{ e.replace('_',' ') }}</span>
+          </div>
+        </div>
       </div>
-      <div class="rounded-xl border bg-white p-4">
-        <p class="text-sm text-gray-500">Tipo de entrega</p>
-        <p class="text-lg font-semibold capitalize">{{ (pedido.tipo || '').replace('_',' ') }}</p>
-      </div>
-      <div class="rounded-xl border bg-white p-4">
-        <p class="text-sm text-gray-500">Total</p>
-        <p class="text-lg font-semibold">{{ money(pedido.total) }}</p>
-      </div>
-      <div class="rounded-xl border bg-white p-4">
-        <p class="text-sm text-gray-500">Asignado a</p>
-        <p class="text-lg font-semibold">
-          {{ (repartidores.find(r => Number(r.id) === Number(pedido.asignado_a))?.name) || '—' }}
-        </p>
-      </div>
-    </div>
 
-    <!-- Items -->
-    <div class="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
-      <table class="w-full text-sm">
-        <thead class="bg-indigo-50 text-indigo-800 text-xs uppercase">
-          <tr>
-            <th class="px-4 py-3 text-left">Producto</th>
-            <th class="px-4 py-3 text-left">Cantidad</th>
-            <th class="px-4 py-3 text-left">Precio</th>
-            <th class="px-4 py-3 text-left">Subtotal</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr v-for="it in pedido.items" :key="it.id" class="hover:bg-gray-50 transition">
-            <td class="px-4 py-3">{{ it.producto }}</td>
-            <td class="px-4 py-3">{{ it.cantidad }}</td>
-            <td class="px-4 py-3">{{ money(it.precio) }}</td>
-            <td class="px-4 py-3 font-semibold">{{ money(it.subtotal) }}</td>
-          </tr>
-          <tr v-if="!pedido.items?.length">
-            <td colspan="4" class="px-4 py-6 text-center text-gray-500">Este pedido no tiene items.</td>
-          </tr>
-        </tbody>
-      </table>
-    </div>
+      <div class="grid gap-4 md:grid-cols-2">
+        <div class="rounded-2xl border bg-white p-5 shadow-sm">
+          <p class="mb-3 text-sm text-gray-500">Cambiar estado</p>
+          <div class="flex flex-wrap gap-2">
+            <button class="rounded-md bg-amber-600 px-3 py-1.5 text-white hover:bg-amber-700 disabled:opacity-50"
+              :disabled="processing || bloqueado || estadoActual==='preparando'"
+              @click="setEstado('preparando')">Preparando</button>
 
-    <!-- Observaciones -->
-    <div v-if="pedido.observaciones" class="mt-6 rounded-xl border bg-white p-4">
-      <p class="text-sm text-gray-500 mb-1">Observaciones</p>
-      <p class="text-gray-800">{{ pedido.observaciones }}</p>
-    </div>
+            <button class="rounded-md bg-blue-600 px-3 py-1.5 text-white hover:bg-blue-700 disabled:opacity-50"
+              :disabled="processing || bloqueado || estadoActual==='listo'"
+              @click="setEstado('listo')">Listo</button>
 
-    <!-- Bitácora -->
-    <div class="mt-6 rounded-xl border bg-white p-4">
-      <h3 class="mb-3 text-lg font-semibold text-gray-800">Bitácora</h3>
-      <div v-if="pedido.logs?.length">
-        <ul class="space-y-2">
-          <li v-for="log in pedido.logs" :key="log.id" class="text-sm text-gray-700">
-            <span class="font-medium text-gray-900">{{ log.fecha }}</span> —
-            <span class="uppercase tracking-wide text-xs px-2 py-0.5 rounded-full"
-                  :class="{
-                    'bg-blue-100 text-blue-800': log.accion === 'asignado' || log.accion === 'desasignado',
-                    'bg-amber-100 text-amber-800': log.accion === 'estado_cambiado',
-                    'bg-rose-100 text-rose-800': log.accion === 'cancelado'
-                  }">
-              {{ log.accion.replace('_',' ') }}
-            </span>
-            por <span class="font-medium">{{ log.by }}</span>
-            <template v-if="log.accion === 'estado_cambiado'">
-              — estado: <span class="italic">{{ log.de || '—' }}</span> → <span class="italic">{{ log.a || '—' }}</span>
-            </template>
-            <template v-else-if="log.accion === 'asignado' || log.accion === 'desasignado'">
-              — repartidor: <span class="italic">{{ log.de || '—' }}</span> → <span class="italic">{{ log.a || '—' }}</span>
-            </template>
-            <template v-if="log.motivo"> — motivo: <span class="italic">{{ log.motivo }}</span></template>
+            <button class="rounded-md bg-indigo-600 px-3 py-1.5 text-white hover:bg-indigo-700 disabled:opacity-50"
+              :disabled="processing || bloqueado || estadoActual==='en_camino'"
+              @click="setEstado('en_camino')">En camino</button>
+
+            <button class="rounded-md bg-green-600 px-3 py-1.5 text-white hover:bg-green-700 disabled:opacity-50"
+              :disabled="processing || estadoActual==='entregado'"
+              @click="setEstado('entregado')">Entregado</button>
+          </div>
+        </div>
+
+        <div class="rounded-2xl border bg-white p-5 shadow-sm">
+          <p class="mb-3 text-sm text-gray-500">Asignación</p>
+          <div class="flex flex-wrap items-center gap-3">
+            <div class="relative">
+              <select
+                class="w-56 appearance-none rounded-lg border border-gray-300 bg-white px-3 py-2 pr-9 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-50"
+                :disabled="processing || estadoActual==='cancelado'"
+                :value="pedido.asignado_a || ''"
+                @change="asignar($event.target.value)"
+              >
+                <option value="">— Sin asignar —</option>
+                <option v-for="r in repartidores" :key="r.id" :value="r.id">{{ r.name }}</option>
+              </select>
+              <svg class="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-500"
+                   xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                <path fill-rule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 10.94l3.71-3.71a.75.75 0 111.08 1.04l-4.25 4.25a.75.75 0 01-1.08 0L5.21 8.27a.75.75 0 01.02-1.06z" clip-rule="evenodd"/>
+              </svg>
+            </div>
+            <p v-if="repartidores.length === 0" class="text-sm text-gray-500">No hay repartidores registrados.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="grid gap-4 md:grid-cols-4">
+        <div class="rounded-2xl border bg-white p-4 shadow-sm">
+          <p class="text-sm text-gray-500">Estado</p>
+          <p class="text-lg font-semibold capitalize">{{ pedido.estado.replace('_',' ') }}</p>
+        </div>
+        <div class="rounded-2xl border bg-white p-4 shadow-sm">
+          <p class="text-sm text-gray-500">Tipo de entrega</p>
+          <p class="text-lg font-semibold capitalize">{{ pedido.tipo.replace('_',' ') }}</p>
+        </div>
+        <div class="rounded-2xl border bg-white p-4 shadow-sm">
+          <p class="text-sm text-gray-500">Total</p>
+          <p class="text-lg font-semibold">{{ money(pedido.total) }}</p>
+        </div>
+        <div class="rounded-2xl border bg-white p-4 shadow-sm">
+          <p class="text-sm text-gray-500">Asignado a</p>
+          <p class="text-lg font-semibold">
+            {{ (repartidores.find(r => Number(r.id) === Number(pedido.asignado_a))?.name) || '—' }}
+          </p>
+        </div>
+      </div>
+
+      <!-- 👇 NUEVO: Datos de envío a domicilio -->
+      <section
+        v-if="pedido?.tipo === 'domicilio' && pedido?.domicilio"
+        class="rounded-2xl border bg-white p-5 shadow-sm"
+      >
+        <h3 class="mb-3 text-lg font-semibold text-gray-900">Datos de envío a domicilio</h3>
+        <div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-4 text-sm">
+          <div>
+            <p class="text-gray-500">Destinatario</p>
+            <p class="font-medium text-gray-900">{{ pedido.domicilio.nombre || '—' }}</p>
+          </div>
+          <div>
+            <p class="text-gray-500">Teléfono</p>
+            <p class="font-medium text-gray-900">{{ pedido.domicilio.telefono || '—' }}</p>
+          </div>
+          <div class="sm:col-span-2">
+            <p class="text-gray-500">Dirección</p>
+            <p class="font-medium text-gray-900">{{ pedido.domicilio.direccion || '—' }}</p>
+          </div>
+          <div>
+            <p class="text-gray-500">Colonia</p>
+            <p class="font-medium text-gray-900">{{ pedido.domicilio.colonia || '—' }}</p>
+          </div>
+          <div>
+            <p class="text-gray-500">Ciudad</p>
+            <p class="font-medium text-gray-900">{{ pedido.domicilio.ciudad || '—' }}</p>
+          </div>
+          <div class="sm:col-span-2 lg:col-span-3">
+            <p class="text-gray-500">Referencias</p>
+            <p class="font-medium text-gray-900">{{ pedido.domicilio.referencias || '—' }}</p>
+          </div>
+        </div>
+      </section>
+      <!-- ☝️ FIN NUEVO -->
+
+      <div class="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
+        <table class="w-full text-sm">
+          <thead class="bg-indigo-50 text-indigo-800 text-xs uppercase">
+            <tr>
+              <th class="px-4 py-3 text-left">Producto</th>
+              <th class="px-4 py-3 text-left">Cantidad</th>
+              <th class="px-4 py-3 text-left">Precio</th>
+              <th class="px-4 py-3 text-left">Subtotal</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="it in pedido.items" :key="it.id" class="hover:bg-gray-50 transition">
+              <td class="px-4 py-3">{{ it.producto }}</td>
+              <td class="px-4 py-3">{{ it.cantidad }}</td>
+              <td class="px-4 py-3">{{ money(it.precio) }}</td>
+              <td class="px-4 py-3 font-semibold">{{ money(it.subtotal) }}</td>
+            </tr>
+            <tr v-if="!pedido.items?.length">
+              <td colspan="4" class="px-4 py-6 text-center text-gray-500">Este pedido no tiene items.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div v-if="pedido.observaciones" class="rounded-2xl border bg-white p-5 shadow-sm">
+        <p class="mb-1 text-sm text-gray-500">Observaciones</p>
+        <p class="text-gray-800">{{ pedido.observaciones }}</p>
+      </div>
+
+      <div class="rounded-2xl border bg-white p-5 shadow-sm">
+        <h3 class="mb-3 text-lg font-semibold text-gray-900">Bitácora</h3>
+        <ul class="space-y-6">
+          <li v-for="log in pedido.logs" :key="log.id" class="flex items-start gap-4 border-b pb-4 last:border-0">
+            <div class="flex h-10 w-10 items-center justify-center rounded-full border bg-white text-lg"
+              :class="{
+                'border-amber-300': log.accion==='estado_cambiado',
+                'border-blue-300': ['asignado','desasignado'].includes(log.accion),
+                'border-rose-300': log.accion==='cancelado',
+                'border-gray-300': true
+              }">
+              {{ actionIcon(log.accion) }}
+            </div>
+            <div class="flex-1">
+              <div class="flex items-center justify-between">
+                <span class="text-xs text-gray-500">{{ log.fecha }}</span>
+                <span class="rounded-full px-3 py-1 text-[11px] font-semibold" :class="actionBadge(log.accion)">
+                  {{ actionLabel(log.accion) }}
+                </span>
+              </div>
+              <p class="mt-1 text-sm text-gray-800">
+                <span class="text-gray-500">por</span>
+                <span class="font-medium text-gray-900">{{ log.by }}</span>
+                <template v-if="log.accion==='estado_cambiado'">
+                  — estado:
+                  <span class="italic">{{ log.de || '—' }}</span>
+                  ->
+                  <span class="italic">{{ log.a || '—' }}</span>
+                </template>
+                <template v-if="['asignado','desasignado'].includes(log.accion)">
+                  — repartidor:
+                  <span class="italic">{{ log.de || '—' }}</span>
+                  ->
+                  <span class="italic">{{ log.a || '—' }}</span>
+                </template>
+                <template v-if="log.motivo">
+                  — motivo:
+                  <span class="italic">{{ log.motivo }}</span>
+                </template>
+              </p>
+            </div>
           </li>
+          <li v-if="!pedido.logs?.length" class="text-sm text-gray-500">Aún no hay eventos registrados para este pedido.</li>
         </ul>
       </div>
-      <p v-else class="text-sm text-gray-500">Aún no hay eventos registrados para este pedido.</p>
     </div>
-  </div>
+  </AuthenticatedLayout>
 </template>
