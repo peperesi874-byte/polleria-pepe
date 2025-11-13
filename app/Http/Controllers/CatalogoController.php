@@ -5,8 +5,8 @@ namespace App\Http\Controllers;
 use App\Models\Producto;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
-use Inertia\Inertia;
 use Illuminate\Support\Facades\Storage;
+use Inertia\Inertia;
 
 class CatalogoController extends Controller
 {
@@ -18,7 +18,7 @@ class CatalogoController extends Controller
         $sort     = $request->input('sort', 'nombre'); // nombre|precio|recientes
         $dir      = $request->input('dir', 'asc');     // asc|desc
 
-        // 1) Construir query
+        // 1) Query base
         $query = Producto::query()
             ->where('activo', 1)
             ->when($q !== '', function ($w) use ($q) {
@@ -39,20 +39,34 @@ class CatalogoController extends Controller
             $query->orderBy('nombre', $dir === 'desc' ? 'desc' : 'asc');
         }
 
-        // 3) Paginación
-        $productos = $query->paginate(12)
-    ->through(function ($p) {
-        return [
-            'id'          => $p->id,
-            'nombre'      => $p->nombre,
-            'descripcion' => $p->descripcion,
-            'precio'      => (float) $p->precio,
-            'stock'       => (int) $p->stock,
-            // URL pública que el front puede mostrar:
-            'imagenUrl'   => $p->imagen ? Storage::url($p->imagen) : null,
-        ];
-    })
-    ->withQueryString();
+        // 3) Paginación + transformación
+        $productos = $query
+            ->paginate(12)
+            ->through(function (Producto $p) {
+                // Resolver URL pública de imagen
+                $url = null;
+                if ($p->imagen) {
+                    if (preg_match('~^https?://~i', $p->imagen)) {
+                        $url = $p->imagen; // ya es absoluta
+                    } else {
+                        // asumimos que está en storage/app/public/...
+                        $url = Storage::url(ltrim($p->imagen, '/'));
+                    }
+                } else {
+                    $url = asset('logo.jpg'); // fallback
+                }
+
+                return [
+                    'id'          => $p->id,
+                    'nombre'      => $p->nombre,
+                    'descripcion' => $p->descripcion,
+                    'precio'      => (float) $p->precio,
+                    'stock'       => (int) $p->stock,
+                    // 👇 clave que consumirá el front (ProductCard.vue)
+                    'imagen_url'  => $url,
+                ];
+            })
+            ->withQueryString();
 
         // 4) Respuesta Inertia
         return Inertia::render('Catalogo/Index', [
@@ -64,7 +78,7 @@ class CatalogoController extends Controller
                 'sort' => $sort,
                 'dir'  => $dir,
             ],
-            // para enlaces del header (evita error si no existen)
+            // enlaces opcionales de header
             'canLogin'     => Route::has('login'),
             'canRegister'  => Route::has('register'),
             'loginUrl'     => Route::has('login') ? route('login') : null,

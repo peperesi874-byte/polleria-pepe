@@ -40,7 +40,6 @@ class ProductoController extends Controller
             ->through(function ($p) {
                 $inv = $p->inventario;
 
-                // Usamos el accesor del modelo para la URL pública
                 return [
                     'id'           => $p->id,
                     'nombre'       => $p->nombre,
@@ -50,7 +49,7 @@ class ProductoController extends Controller
                     'stock_minimo' => (int) ($inv->stock_minimo ?? 0),
                     'activo'       => (bool) $p->activo,
                     'imagen'       => $this->normalizePath($p->imagen),
-                    'imagenUrl'    => $p->imagen_url, // <- accesor del modelo
+                    'imagenUrl'    => $p->imagen_url, // accesor del modelo
                 ];
             });
 
@@ -86,9 +85,9 @@ class ProductoController extends Controller
         $producto = new Producto();
         $producto->nombre       = $data['nombre'];
         $producto->descripcion  = $data['descripcion'] ?? null;
-        $producto->precio       = (float) $data['precio'];
-        $producto->stock        = (int)   $data['stock'];
-        $producto->activo       = (bool)  ($data['activo'] ?? false);
+        $producto->precio       = $data['precio'];         // <- sin (float)
+        $producto->stock        = (int) $data['stock'];
+        $producto->activo       = (bool) ($data['activo'] ?? false);
         $producto->imagen       = $rutaImagen;
         $producto->save();
 
@@ -105,6 +104,7 @@ class ProductoController extends Controller
             'activo'       => (bool) $producto->activo,
         ]);
 
+        // Notify::push acepta 5 args: tipo, titulo, mensaje, payload, nivel
         Notify::push(
             'producto_creado',
             'Producto creado',
@@ -114,8 +114,7 @@ class ProductoController extends Controller
                 'producto_id' => (int) $producto->id,
                 'stock'       => (int) $producto->stock,
             ],
-            'success',
-            $producto->id
+            'success'
         );
 
         $this->notificarBajoMinimoSiAplica($producto->id);
@@ -169,10 +168,10 @@ class ProductoController extends Controller
         }
 
         $producto->nombre       = $data['nombre'];
-        $producto->precio       = (float) $data['precio'];
-        $producto->stock        = (int)   $data['stock'];
+        $producto->precio       = $data['precio'];         // <- sin (float) y sin doble asignación
+        $producto->stock        = (int) $data['stock'];
         $producto->descripcion  = $data['descripcion'] ?? null;
-        $producto->activo       = (bool)  ($data['activo'] ?? false);
+        $producto->activo       = (bool) ($data['activo'] ?? false);
         $producto->save();
 
         // Sincronizar inventario básico
@@ -199,8 +198,7 @@ class ProductoController extends Controller
                 'stock'        => (int) $producto->stock,
                 'stock_minimo' => (int) $stockMinimo,
             ],
-            'info',
-            $producto->id
+            'info'
         );
 
         $this->notificarBajoMinimoSiAplica($producto->id);
@@ -233,8 +231,7 @@ class ProductoController extends Controller
                 'accion'      => 'eliminar',
                 'producto_id' => (int) $idRef,
             ],
-            'warning',
-            $idRef
+            'warning'
         );
 
         return Redirect::route('productos.index')
@@ -263,8 +260,7 @@ class ProductoController extends Controller
                     'stock'        => (int) $inv->stock_actual,
                     'stock_minimo' => (int) $inv->stock_minimo,
                 ],
-                'danger',
-                $productoId
+                'danger'
             );
         }
     }

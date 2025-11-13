@@ -83,8 +83,9 @@ const btn = (variant = 'solid') =>
 
         <!-- DERECHA -->
         <div class="flex items-center gap-2">
+           <!-- 👈 vuelve al dashboard correcto -->
           <Link
-            :href="route(prefix + 'dashboard')"  <!-- 👈 vuelve al dashboard correcto -->
+            :href="route(prefix + 'dashboard')"  
             class="text-sm text-indigo-600 hover:underline"
           >
             ← Volver al panel
@@ -172,8 +173,9 @@ const btn = (variant = 'solid') =>
               <td class="px-4 py-3 text-gray-500">{{ p.created_at }}</td>
 
               <td class="px-4 py-3 text-right">
+              <!-- 👈 detalle con prefijo por rol -->
                 <Link
-                  :href="route(prefix + 'pedidos.show', p.id)"  <!-- 👈 detalle con prefijo por rol -->
+                  :href="route(prefix + 'pedidos.show', p.id)"  
                   class="inline-flex items-center gap-1 rounded-lg border border-indigo-200 px-3 py-1.5 text-indigo-700 hover:bg-indigo-50"
                 >
                   Ver detalle →
