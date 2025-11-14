@@ -1,17 +1,22 @@
 <script setup>
-import VendedorLayout from '@/Layouts/VendedorLayout.vue'
+import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue'
 </script>
 
 <template>
-  <VendedorLayout>
+  <AuthenticatedLayout>
     <template #header>
       <h1 class="text-2xl font-semibold text-gray-900">Reportes operativos</h1>
+      <p class="text-sm text-gray-500">Resumen del día seleccionado.</p>
     </template>
 
+    <!-- 👇 AQUÍ DEJAS EXACTAMENTE IGUAL
+         todo tu contenido actual:
+         - tarjetas de pedidos hoy, pendientes, etc.
+         - la tabla de "Pedidos sin asignar"
+         - filtros, etc.
+    -->
     <div class="mx-auto max-w-7xl p-6">
-      <div class="rounded-xl border bg-white p-6">
-        <p class="text-gray-700">Aquí irán los reportes básicos del vendedor (ventas del día, pedidos atendidos, etc.).</p>
-      </div>
+      <!-- TODO lo que ya tienes ahora mismo -->
     </div>
-  </VendedorLayout>
+  </AuthenticatedLayout>
 </template>

@@ -490,4 +490,14 @@ class InventarioController extends Controller
             fclose($out);
         }, 200, $headers);
     }
+
+    /**
+     * GET admin/inventario/movimientos/export/csv
+     *
+     * Wrapper para usar el mismo exportador de historial.
+     */
+    public function exportMovimientosCSV(Request $request): StreamedResponse
+    {
+        return $this->exportCSV($request);
+    }
 }

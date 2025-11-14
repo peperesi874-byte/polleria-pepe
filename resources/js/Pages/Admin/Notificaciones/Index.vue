@@ -1,16 +1,14 @@
-<!-- resources/js/Pages/Admin/Notificaciones/Index.vue -->
 <script setup>
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue'
 import { Head, Link, router } from '@inertiajs/vue3'
 import { ref, watch, computed } from 'vue'
 
 const props = defineProps({
-  // Debe venir con n.leida (bool) o equivalente desde el controlador
   notificaciones: Object, // paginator { data, links, ... }
-  filters: Object         // { q }
+  filters: Object
 })
 
-/* ----------------- Helpers ----------------- */
+/* --------- Helpers de botón --------- */
 const btn = (variant = 'outline') =>
   [
     'inline-flex items-center gap-2 rounded-xl px-3 py-2 text-sm transition focus:outline-none focus:ring-2 focus:ring-indigo-300',
@@ -19,7 +17,7 @@ const btn = (variant = 'outline') =>
       : 'border border-gray-300 text-gray-700 hover:bg-gray-50'
   ].join(' ')
 
-/* ----------------- Buscador (debounce) ----------------- */
+/* --------- Buscador (debounce) --------- */
 const q = ref(props.filters?.q ?? '')
 let t = null
 watch(q, () => {
@@ -33,22 +31,35 @@ watch(q, () => {
   }, 350)
 })
 
-/* ----------------- Lista / Paginación ----------------- */
+/* --------- Lista / Paginación --------- */
 const items = computed(() => props.notificaciones?.data ?? [])
 const links = computed(() => props.notificaciones?.links ?? [])
 
-/* ----------------- Acciones ----------------- */
+/* --------- Acciones: leer --------- */
 function marcarLeida(id) {
-  if (!route().has('admin.notificaciones.read')) return
   router.patch(route('admin.notificaciones.read', id), {}, { preserveScroll: true })
 }
 
 function marcarTodas() {
-  if (!route().has('admin.notificaciones.read_all')) return
   router.patch(route('admin.notificaciones.read_all'), {}, { preserveScroll: true })
 }
 
-/* Badge tono suave por tipo (si viene) */
+/* --------- Acciones: borrar --------- */
+function eliminarLeidas() {
+  if (!confirm('¿Eliminar todas las notificaciones que ya están marcadas como leídas?')) return
+  router.delete(route('admin.notificaciones.delete_read'), {
+    preserveScroll: true,
+  })
+}
+
+function eliminarTodas() {
+  if (!confirm('¿Eliminar TODAS las notificaciones? Esta acción no se puede deshacer.')) return
+  router.delete(route('admin.notificaciones.delete_all'), {
+    preserveScroll: true,
+  })
+}
+
+/* Badge por tipo */
 function tipoPill(tipo) {
   const t = (tipo || '').toString().toLowerCase()
   if (t.includes('inventario')) return 'bg-indigo-50 text-indigo-700 ring-1 ring-indigo-200'
@@ -60,11 +71,12 @@ function tipoPill(tipo) {
 
 <template>
   <Head title="Notificaciones" />
+
   <AuthenticatedLayout>
-    <!-- ===== Header unificado (barra bonita) ===== -->
+    <!-- Header -->
     <template #header>
       <div
-        class="flex items-center justify-between rounded-2xl bg-gradient-to-r from-indigo-50 to-white px-4 py-4 ring-1 ring-indigo-100/60"
+        class="flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-gradient-to-r from-indigo-50 to-white px-4 py-4 ring-1 ring-indigo-100/60"
       >
         <div class="flex items-center gap-3">
           <span class="inline-grid h-9 w-9 place-items-center rounded-xl bg-indigo-100 text-indigo-700">🔔</span>
@@ -74,10 +86,19 @@ function tipoPill(tipo) {
           </div>
         </div>
 
-        <div class="hidden md:flex items-center gap-2">
+        <div class="flex flex-wrap items-center gap-2">
           <button type="button" :class="btn('outline')" @click="marcarTodas">
             Marcar todas como leídas
           </button>
+
+          <!-- 🔥 Botones nuevos -->
+          <button type="button" :class="btn('outline')" @click="eliminarLeidas">
+            Eliminar leídas
+          </button>
+          <button type="button" :class="btn('solid')" @click="eliminarTodas">
+            Eliminar todas
+          </button>
+
           <Link :href="route('admin.dashboard')" class="text-sm text-indigo-600 hover:underline">
             ← Volver al panel
           </Link>
@@ -85,7 +106,7 @@ function tipoPill(tipo) {
       </div>
     </template>
 
-    <!-- ===== Contenido ===== -->
+    <!-- Contenido -->
     <div class="mx-auto max-w-7xl p-6 space-y-4">
       <!-- Buscador -->
       <div class="flex flex-wrap items-center gap-3">
@@ -98,9 +119,6 @@ function tipoPill(tipo) {
           />
           <span class="pointer-events-none absolute inset-y-0 right-3 flex items-center text-gray-400">🔎</span>
         </div>
-
-        <!-- En móviles, acción rápida -->
-        <button class="md:hidden" :class="btn('outline')" @click="marcarTodas">Marcar todas</button>
       </div>
 
       <!-- Tabla -->
@@ -130,7 +148,9 @@ function tipoPill(tipo) {
                 </td>
 
                 <td class="px-4 py-3 text-gray-700">
-                  <div class="line-clamp-2 max-w-[70ch]" :title="n.mensaje">{{ n.mensaje }}</div>
+                  <div class="line-clamp-2 max-w-[70ch]" :title="n.mensaje">
+                    {{ n.mensaje }}
+                  </div>
                 </td>
 
                 <td class="px-4 py-3">
@@ -140,11 +160,12 @@ function tipoPill(tipo) {
                 </td>
 
                 <td class="px-4 py-3 text-right">
-                  <!-- ✅ Si ya está leída, mostrar chip; si no, botón -->
                   <span
                     v-if="n.leida"
                     class="inline-flex items-center rounded-lg bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700 ring-1 ring-emerald-200"
-                  >Leída</span>
+                  >
+                    Leída
+                  </span>
 
                   <button
                     v-else
@@ -190,11 +211,10 @@ function tipoPill(tipo) {
 </template>
 
 <style scoped>
-/* Utilidad para truncar dos líneas sin plugins */
-.line-clamp-2{
-  display:-webkit-box;
-  -webkit-line-clamp:2;
-  -webkit-box-orient:vertical;
-  overflow:hidden;
+.line-clamp-2 {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }
 </style>

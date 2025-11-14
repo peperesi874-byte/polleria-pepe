@@ -3,7 +3,7 @@
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 
-// Público / catálogo
+// Público
 use App\Http\Controllers\CatalogoController;
 use App\Http\Controllers\ProductoController;
 
@@ -17,73 +17,80 @@ use App\Http\Controllers\Admin\BitacoraController;
 use App\Http\Controllers\Admin\NotificacionesController;
 use App\Http\Controllers\Admin\ConfiguracionController;
 
-// Cliente
-use App\Http\Controllers\ClientePedidoController;
-use App\Http\Controllers\CartController;
-use App\Http\Controllers\ClientePerfilController;
-use App\Http\Controllers\HomeRedirectController;
-use App\Http\Controllers\Cliente\CheckoutController;
-
-use App\Http\Controllers\ProfileController;
-
 // Vendedor
 use App\Http\Controllers\Vendedor\DashboardController as VendedorDashboardController;
 use App\Http\Controllers\Vendedor\ReportesOperativosController;
 use App\Http\Controllers\Vendedor\ClienteRapidoController;
 use App\Http\Controllers\Vendedor\PedidoCrearController;
 use App\Http\Controllers\Vendedor\PedidoTicketController as VendedorPedidoTicketController;
+use App\Http\Controllers\Vendedor\NotificacionesController as VendedorNotificacionesController;
+use App\Http\Controllers\Vendedor\BitacoraController as VendedorBitacoraController;
+
+// Cliente
+use App\Http\Controllers\ClientePedidoController;
+use App\Http\Controllers\CartController;
+use App\Http\Controllers\ClientePerfilController;
+use App\Http\Controllers\Cliente\CheckoutController; 
+use App\Http\Controllers\HomeRedirectController;
+
+// Perfil (Auth Breeze)
+use App\Http\Controllers\ProfileController;
 
 /*
 |--------------------------------------------------------------------------
 | RUTAS PÚBLICAS
 |--------------------------------------------------------------------------
 */
+
 Route::get('/', fn () => redirect()->route('catalogo.index'));
 
 Route::get('/catalogo', [CatalogoController::class, 'index'])
     ->name('catalogo.index');
 
-/* CRUD de productos (público solo para pruebas) */
-Route::resource('productos', ProductoController::class)->names('productos');
+Route::resource('productos', ProductoController::class)
+    ->names('productos');
 
 /*
 |--------------------------------------------------------------------------
-| AUTENTICACIÓN (Laravel Breeze)
+| PERFIL (requiere login)
 |--------------------------------------------------------------------------
 */
+Route::middleware(['auth'])->group(function () {
+    Route::get('/profile', [ProfileController::class, 'edit'])
+        ->name('profile.edit');
+
+    Route::put('/profile', [ProfileController::class, 'update'])
+        ->name('profile.update');
+
+    Route::delete('/profile', [ProfileController::class, 'destroy'])
+        ->name('profile.destroy');
+});
+
+// Auth scaffolding Breeze
 require __DIR__ . '/auth.php';
 
-Route::middleware('auth')->group(function () {
-    Route::get('/profile',  [ProfileController::class, 'edit'])->name('profile.edit');
-    Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
-    Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
-});
- require __DIR__ . '/auth.php';
-
-Route::middleware('auth')->group(function () {
-    Route::get('/profile',  [ProfileController::class, 'edit'])->name('profile.edit');
-    Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
-    Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
-});
-
-// 🔹 Ruta para redirigir según rol
-Route::get('/redirect-by-role', [HomeRedirectController::class, '__invoke'])
-    ->middleware('auth')
-    ->name('redirect.by.role');
-
-
-Route::get('/redirect-by-role', HomeRedirectController::class)
-    ->middleware('auth')
-    ->name('redirect.by.role');
-
 /*
 |--------------------------------------------------------------------------
-| POST-LOGIN (redirige por rol)
+| REDIRECCIÓN POR ROL
 |--------------------------------------------------------------------------
 */
-Route::get('/home', HomeRedirectController::class)
-    ->middleware('auth')
-    ->name('home');
+Route::get('/redirect-by-role', function () {
+    $user = auth()->user();
+    if (!$user) return redirect()->route('catalogo.index');
+
+    $role = (int) ($user->role_id ?? 0);
+
+    return match ($role) {
+        1       => redirect()->route('admin.dashboard'),
+        2       => redirect()->route('vendedor.dashboard'),
+        3, 4    => redirect()->route('catalogo.index'),
+        default => redirect()->route('catalogo.index'),
+    };
+})->name('redirect.by.role');
+
+Route::middleware(['auth', 'verified'])
+    ->get('/dashboard', fn () => redirect()->route('redirect.by.role'))
+    ->name('dashboard');
 
 /*
 |--------------------------------------------------------------------------
@@ -94,9 +101,24 @@ Route::prefix('admin')
     ->as('admin.')
     ->middleware(['auth', 'role:1'])
     ->group(function () {
-        Route::get('/dashboard', [AdminDashboardController::class, 'index'])->name('dashboard');
 
-        // Usuarios
+        Route::get('/dashboard', [AdminDashboardController::class, 'index'])
+            ->name('dashboard');
+
+        // Reportes (vista)
+        Route::get('/reportes', fn () => Inertia::render('Admin/Reportes/Index'))
+            ->name('reportes.index');
+
+        // Configuración
+        Route::get('/configuracion', [ConfiguracionController::class, 'edit'])
+            ->name('config.edit');
+
+        Route::put('/configuracion', [ConfiguracionController::class, 'update'])
+            ->name('config.update');
+
+        /*
+        | USERS
+        */
         Route::controller(UserController::class)->group(function () {
             Route::get('/usuarios', 'index')->name('usuarios.index');
             Route::get('/usuarios/create', 'create')->name('usuarios.create');
@@ -106,31 +128,78 @@ Route::prefix('admin')
             Route::delete('/usuarios/{user}', 'destroy')->name('usuarios.destroy');
         });
 
-        // Módulos admin
-        Route::get('/reportes', [ReportesController::class, 'index'])->name('reportes.index');
-        Route::get('/bitacora', [BitacoraController::class, 'index'])->name('bitacora.index');
-        Route::get('/notificaciones', [NotificacionesController::class, 'index'])->name('notificaciones.index');
+        /*
+        | REPORTES (CATÁLOGO, ETC.)
+        */
+        Route::get('/reportes/productos/export/csv', [ReportesController::class, 'exportProductosCSV'])
+            ->name('reportes.productos.csv');
 
-        // Inventario
-        Route::controller(InventarioController::class)->group(function () {
-            Route::get('/inventario', 'index')->name('inventario.index');
-            Route::get('/inventario/movimientos', 'movimientos')->name('inventario.movimientos');
-            Route::get('/inventario/historial', 'historial')->name('inventario.historial');
-            Route::get('/inventario/pdf', 'reportePdf')->name('inventario.pdf'); // si existe
-        });
+        /*
+        | INVENTARIO
+        */
+        Route::get('/inventario', [InventarioController::class, 'index'])
+            ->name('inventario.index');
 
-        // Pedidos
-        Route::controller(AdminPedidoController::class)->group(function () {
-            Route::get('/pedidos', 'index')->name('pedidos.index');
-            Route::get('/pedidos/{pedido}', 'show')->name('pedidos.show');
-            // agrega aquí setEstado/asignaciones si existen
-        });
+        Route::post('/inventario/movimiento', [InventarioController::class, 'storeMovimiento'])
+            ->name('inventario.movimiento');
 
-        // Configuración
-        Route::controller(ConfiguracionController::class)->group(function () {
-            Route::get('/configuracion', 'edit')->name('config.edit');
-            Route::put('/configuracion', 'update')->name('config.update');
-        });
+        Route::put('/inventario/{producto}/minimo', [InventarioController::class, 'updateMinimo'])
+            ->name('inventario.minimo');
+
+        Route::get('/inventario/{producto}/movimientos', [InventarioController::class, 'movimientos'])
+            ->name('inventario.movimientos');
+
+        Route::get('/inventario/export/pdf', [InventarioController::class, 'exportInventarioPDF'])
+            ->name('inventario.export.pdf');
+
+        Route::get('/inventario/export/csv', [InventarioController::class, 'exportInventarioCSV'])
+            ->name('inventario.export.csv');
+
+        Route::get('/inventario/movimientos/export/csv', [InventarioController::class, 'exportCSV'])
+            ->name('inventario.historial.csv');
+
+        /*
+        | PEDIDOS
+        */
+        Route::resource('pedidos', AdminPedidoController::class)
+            ->only(['index', 'show'])
+            ->names('pedidos');
+
+        Route::post('/pedidos', [AdminPedidoController::class, 'store'])
+            ->name('pedidos.store');
+
+        Route::put('/pedidos/{pedido}/estado', [AdminPedidoController::class, 'setEstado'])
+            ->name('pedidos.estado');
+
+        Route::put('/pedidos/{pedido}/cancelar', [AdminPedidoController::class, 'cancelar'])
+            ->name('pedidos.cancelar');
+
+        Route::put('/pedidos/{pedido}/asignar', [AdminPedidoController::class, 'asignar'])
+            ->name('pedidos.asignar');
+
+        Route::get('/pedidos/{pedido}/ticket', [VendedorPedidoTicketController::class, 'show'])
+            ->name('pedidos.ticket');
+
+        /*
+        | BITÁCORA + NOTIFICACIONES
+        */
+        Route::get('/bitacora', [BitacoraController::class, 'index'])
+            ->name('bitacora.index');
+
+        Route::get('/notificaciones', [NotificacionesController::class, 'index'])
+            ->name('notificaciones.index');
+
+        Route::patch('/notificaciones/{n}/leer', [NotificacionesController::class, 'markRead'])
+            ->name('notificaciones.read');
+
+        Route::patch('/notificaciones/leer-todas', [NotificacionesController::class, 'markAllRead'])
+            ->name('notificaciones.read_all');
+
+        Route::delete('/notificaciones/leidas', [NotificacionesController::class, 'deleteRead'])
+            ->name('notificaciones.delete_read');
+
+        Route::delete('/notificaciones', [NotificacionesController::class, 'deleteAll'])
+            ->name('notificaciones.delete_all');
     });
 
 /*
@@ -142,8 +211,10 @@ Route::prefix('vendedor')
     ->as('vendedor.')
     ->middleware(['auth', 'role:2'])
     ->group(function () {
+
         // Panel principal del vendedor
-        Route::get('/dashboard', [VendedorDashboardController::class, 'index'])->name('dashboard');
+        Route::get('/dashboard', [VendedorDashboardController::class, 'index'])
+            ->name('dashboard');
 
         // Reporte operativo
         Route::get('/reportes/operativos', [ReportesOperativosController::class, 'index'])
@@ -153,29 +224,54 @@ Route::prefix('vendedor')
         Route::post('/clientes/rapido', [ClienteRapidoController::class, 'store'])
             ->name('clientes.rapido.store');
 
+        /*
+        | NOTIFICACIONES
+        */
+        Route::get('/notificaciones', [VendedorNotificacionesController::class, 'index'])
+            ->name('notificaciones.index');
+
+        Route::post('/notificaciones/{notificacion}/leer', [VendedorNotificacionesController::class, 'marcarLeida'])
+            ->name('notificaciones.leer');
+
+        Route::post('/notificaciones/leer-todas', [VendedorNotificacionesController::class, 'marcarTodasLeidas'])
+            ->name('notificaciones.leer_todas');
+
+        /*
+        | BITÁCORA DEL VENDEDOR
+        */
+        Route::get('/bitacora', [VendedorBitacoraController::class, 'index'])
+            ->name('bitacora.index');
+
+        /*
+        | PEDIDOS DEL VENDEDOR
+        */
         // Crear pedido en mostrador
-        Route::get('/pedidos/create', [PedidoCrearController::class, 'create'])->name('pedidos.create');
-        Route::post('/pedidos', [PedidoCrearController::class, 'store'])->name('pedidos.store');
+        Route::get('/pedidos/create', [PedidoCrearController::class, 'create'])
+            ->name('pedidos.create');
+
+        Route::post('/pedidos', [PedidoCrearController::class, 'store'])
+            ->name('pedidos.store');
 
         // Listado general de pedidos (usa mismo controlador que admin)
-        Route::get('/pedidos', [AdminPedidoController::class, 'index'])->name('pedidos.index');
+        Route::get('/pedidos', [AdminPedidoController::class, 'index'])
+            ->name('pedidos.index');
 
-        // Detalle y acciones sobre pedidos
+        // Detalle y acciones sobre pedidos (usa mismo controlador del admin)
         Route::get('/pedidos/{pedido}', [AdminPedidoController::class, 'show'])
-            ->whereNumber('pedido')->name('pedidos.show');
+            ->name('pedidos.show');
 
         Route::put('/pedidos/{pedido}/estado', [AdminPedidoController::class, 'setEstado'])
-            ->whereNumber('pedido')->name('pedidos.estado');
+            ->name('pedidos.estado');
 
         Route::put('/pedidos/{pedido}/cancelar', [AdminPedidoController::class, 'cancelar'])
-            ->whereNumber('pedido')->name('pedidos.cancelar');
+            ->name('pedidos.cancelar');
 
         Route::put('/pedidos/{pedido}/asignar', [AdminPedidoController::class, 'asignar'])
-            ->whereNumber('pedido')->name('pedidos.asignar');
+            ->name('pedidos.asignar');
 
         // Ticket del pedido
         Route::get('/pedidos/{pedido}/ticket', [VendedorPedidoTicketController::class, 'show'])
-            ->whereNumber('pedido')->name('pedidos.ticket');
+            ->name('pedidos.ticket');
     });
 
 /*
@@ -187,14 +283,19 @@ Route::prefix('cliente')
     ->as('cliente.')
     ->middleware(['auth', 'role:4'])
     ->group(function () {
-        // Inicio
-        Route::get('/', fn () => Inertia::render('Cliente/Inicio'))->name('inicio');
 
-        // Catálogo
-        Route::get('/catalogo', [CatalogoController::class, 'index'])->name('catalogo.index');
+        // Inicio del panel cliente
+        Route::get('/', fn () => Inertia::render('Cliente/Inicio'))
+            ->name('inicio');
 
-        // Pedidos
-        Route::get('/pedidos', [ClientePedidoController::class, 'index'])->name('pedidos.index');
+        // Catálogo (versión dentro del panel cliente)
+        Route::get('/catalogo', [CatalogoController::class, 'index'])
+            ->name('catalogo.index');
+
+        // Pedidos del cliente
+        Route::get('/pedidos', [ClientePedidoController::class, 'index'])
+            ->name('pedidos.index');
+
         Route::get('/pedidos/{id}', fn ($id) => Inertia::render('Cliente/Pedidos/Show', ['id' => $id]))
             ->name('pedidos.show');
 
@@ -208,14 +309,24 @@ Route::prefix('cliente')
         });
 
         // Checkout
-        Route::get('/checkout', [CheckoutController::class, 'create'])->name('checkout.create');
-        Route::post('/checkout', [CheckoutController::class, 'store'])->name('checkout.store');
+        Route::get('/checkout', [CheckoutController::class, 'create'])
+            ->name('checkout.create');
+
+        Route::post('/checkout', [CheckoutController::class, 'store'])
+            ->name('checkout.store');
 
         // Confirmación de pedido
         Route::get('/checkout/confirmacion/{pedido}', [CheckoutController::class, 'confirmacion'])
             ->name('checkout.confirmacion');
 
-        // Perfil
-        Route::get('/perfil',  [ClientePerfilController::class, 'edit'])->name('perfil.edit');
-        Route::put('/perfil',  [ClientePerfilController::class, 'update'])->name('perfil.update');
+        // Perfil del cliente
+        Route::get('/perfil', [ClientePerfilController::class, 'edit'])
+            ->name('perfil.edit');
+
+        Route::put('/perfil', [ClientePerfilController::class, 'update'])
+            ->name('perfil.update');
+
+        // Ticket del pedido desde el panel del cliente (mismo ticket del vendedor)
+        Route::get('/pedidos/{pedido}/ticket', [VendedorPedidoTicketController::class, 'show'])
+            ->name('pedidos.ticket');
     });

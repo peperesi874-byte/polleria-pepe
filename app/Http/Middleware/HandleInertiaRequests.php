@@ -2,7 +2,9 @@
 
 namespace App\Http\Middleware;
 
+use App\Models\Notificacion;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Inertia\Middleware;
 
 class HandleInertiaRequests extends Middleware
@@ -10,7 +12,7 @@ class HandleInertiaRequests extends Middleware
     /**
      * Vista raíz que se carga en la primera visita.
      */
-    protected $rootView = 'app'; // puede ser public|protected; uso protected (como el stub de Laravel)
+    protected $rootView = 'app';
 
     /**
      * Versión de los assets (opcional; útil para cache busting).
@@ -26,11 +28,14 @@ class HandleInertiaRequests extends Middleware
     public function share(Request $request): array
     {
         return array_merge(parent::share($request), [
-            // Autenticación (lo que ya tenías)
+
+            // 🔐 Autenticación
             'auth' => [
                 'user' => function () use ($request) {
                     $u = $request->user();
-                    if (!$u) return null;
+                    if (!$u) {
+                        return null;
+                    }
 
                     return [
                         'id'      => $u->id,
@@ -45,11 +50,28 @@ class HandleInertiaRequests extends Middleware
                 },
             ],
 
-            // ✅ Mensajes flash para que Vue los lea como $page.props.flash.success / error
+            // ✅ Mensajes flash
             'flash' => [
                 'success' => fn () => $request->session()->get('success'),
                 'error'   => fn () => $request->session()->get('error'),
             ],
+
+            // 📩 Notificaciones (contador global para la campanita)
+            'notificaciones' => function () {
+                if (!Auth::check()) {
+                    return [
+                        'unread_count' => 0,
+                    ];
+                }
+
+                $userId = Auth::id();
+
+                return [
+                    'unread_count' => Notificacion::where('user_id', $userId)
+                        ->where('leida', false)
+                        ->count(),
+                ];
+            },
         ]);
     }
 }

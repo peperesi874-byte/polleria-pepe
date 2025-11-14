@@ -5,56 +5,87 @@ namespace App\Http\Controllers\Vendedor;
 use App\Http\Controllers\Controller;
 use App\Models\Pedido;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Schema;
 use Inertia\Inertia;
+use Inertia\Response;
 
 class ReportesOperativosController extends Controller
 {
-    public function index(Request $request)
+    public function index(Request $request): Response
     {
-        // Por defecto HOY. También acepta ?fecha=YYYY-MM-DD
-        $fecha = $request->query('fecha', now()->toDateString());
+        $user  = $request->user();
+        $fecha = $request->input('fecha', now()->toDateString());
+
+        // Nombres "por defecto" de columnas
+        $colEstado     = 'estado';        // pendiente, en_camino, entregado, cancelado
+        $colTipoVenta  = 'tipo_pedido';   // mostrador / domicilio (si existe)
+        $colTotal      = 'total';         // importe total del pedido
 
         // Base: pedidos del día seleccionado
-        $base = Pedido::query()->whereDate('created_at', $fecha);
+        $base = Pedido::query()
+            ->whereDate('created_at', $fecha);
 
-        // Conteos por estado (del día)
-        $pendientes  = (clone $base)->where('estado', 'pendiente')->count();
-        $preparando  = (clone $base)->where('estado', 'preparando')->count();
-        $listo       = (clone $base)->where('estado', 'listo')->count();
-        $enCamino    = (clone $base)->where('estado', 'en_camino')->count();
-        $entregados  = (clone $base)->where('estado', 'entregado')->count();
-        $cancelados  = (clone $base)->where('estado', 'cancelado')->count();
+        // 🔍 Filtro por vendedor SOLO si existe columna adecuada
+        if (Schema::hasColumn('pedidos', 'user_id')) {
+            $base->where('user_id', $user->id);
+        } elseif (Schema::hasColumn('pedidos', 'vendedor_id')) {
+            $base->where('vendedor_id', $user->id);
+        }
 
-        // Totales del día
-        $totalPedidos = (clone $base)->count();
-        $montoDelDia  = (clone $base)->sum('total');
+        // Helper para clonar la consulta con todos los filtros
+        $q = fn () => (clone $base);
 
-        // ⚠️ SIN LÍMITE: todos los pedidos del día sin repartidor
-        $sinAsignar = (clone $base)
-            ->whereNull('asignado_a')
-            ->orderByDesc('id')
-            ->get(['id','folio','estado','total','created_at']);
+        // --- Conteos generales ---
+        $totalPedidos = $q()->count();
+
+        // --- Mostrador / Domicilio (solo si existe columna tipo_pedido) ---
+        $totalMostrador = 0;
+        $totalDomicilio = 0;
+
+        if (Schema::hasColumn('pedidos', $colTipoVenta)) {
+            $totalMostrador = $q()->where($colTipoVenta, 'mostrador')->count();
+            $totalDomicilio = $q()->where($colTipoVenta, 'domicilio')->count();
+        }
+
+        // --- Estados (si no existiera la columna, quedarán en 0 pero no truena) ---
+        $pendientes = Schema::hasColumn('pedidos', $colEstado)
+            ? $q()->where($colEstado, 'pendiente')->count()
+            : 0;
+
+        $enCamino = Schema::hasColumn('pedidos', $colEstado)
+            ? $q()->where($colEstado, 'en_camino')->count()
+            : 0;
+
+        $entregados = Schema::hasColumn('pedidos', $colEstado)
+            ? $q()->where($colEstado, 'entregado')->count()
+            : 0;
+
+        $cancelados = Schema::hasColumn('pedidos', $colEstado)
+            ? $q()->where($colEstado, 'cancelado')->count()
+            : 0;
+
+        // --- Importe total / ticket promedio (solo si existe columna total) ---
+        $totalImporte = Schema::hasColumn('pedidos', $colTotal)
+            ? (float) $q()->sum($colTotal)
+            : 0;
+
+        $promedioTicket = $totalPedidos > 0 ? $totalImporte / $totalPedidos : 0;
+
+        $resumen = [
+            'total_pedidos'    => $totalPedidos,
+            'total_mostrador'  => $totalMostrador,
+            'total_domicilio'  => $totalDomicilio,
+            'pendientes'       => $pendientes,
+            'en_camino'        => $enCamino,
+            'entregados'       => $entregados,
+            'cancelados'       => $cancelados,
+            'total_importe'    => $totalImporte,
+            'promedio_ticket'  => $promedioTicket,
+        ];
 
         return Inertia::render('Vendedor/Reportes/Operativos', [
             'fecha'   => $fecha,
-            'totales' => [
-                'total_hoy'   => (int) $totalPedidos,
-                'monto_hoy'   => (float) $montoDelDia,
-                'pendiente'   => (int) $pendientes,
-                'preparando'  => (int) $preparando,
-                'listo'       => (int) $listo,
-                'en_camino'   => (int) $enCamino,
-                'entregado'   => (int) $entregados,
-                'cancelado'   => (int) $cancelados,
-                'sin_asignar' => (int) $sinAsignar->count(),
-            ],
-            'sin_asignar' => $sinAsignar->map(fn ($p) => [
-                'id'         => (int) $p->id,
-                'folio'      => (string) ($p->folio ?? '—'),
-                'estado'     => (string) $p->estado,
-                'total'      => (float) $p->total,
-                'created_at' => optional($p->created_at)->format('Y-m-d H:i'),
-            ]),
+            'resumen' => $resumen,
         ]);
     }
 }
