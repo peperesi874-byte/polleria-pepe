@@ -34,6 +34,7 @@ const unreadNotifications = computed(() =>
 const notifRoute = computed(() => {
   if (roleId.value === 1) return safeRoute('admin.notificaciones.index')
   if (roleId.value === 2) return safeRoute('vendedor.notificaciones.index')
+  // Cliente y público: por ahora los mando al catálogo
   return safeRoute('catalogo.index')
 })
 
@@ -57,12 +58,13 @@ const navLinkClasses = (active) => [
          : 'text-gray-700 hover:bg-gray-100 hover:text-gray-900'
 ].join(' ')
 
-/* Inicio según rol */
+/* Inicio según rol (para el LOGO) */
 const homeRoute = computed(() => {
   try {
-    if (roleId.value === 1) return route('admin.dashboard')
-    if (roleId.value === 2) return route('vendedor.dashboard')
-    return route('catalogo.index')
+    if (roleId.value === 1) return route('admin.dashboard')       // Admin → panel admin
+    if (roleId.value === 2) return route('vendedor.dashboard')    // Vendedor → panel vendedor
+    if (roleId.value === 4) return route('cliente.inicio')        // Cliente → panel cliente
+    return route('catalogo.index')                                // Público / otros → catálogo
   } catch {
     return route('catalogo.index')
   }
@@ -115,7 +117,15 @@ const homeRoute = computed(() => {
                 <Link :href="safeRoute('vendedor.bitacora.index')"      :class="navLinkClasses(isCurrent('vendedor.bitacora.index'))">Bitácora</Link>
               </template>
 
-              <!-- PÚBLICO -->
+              <!-- CLIENTE -->
+              <template v-else-if="roleId === 4">
+                <Link :href="safeRoute('cliente.inicio')"           :class="navLinkClasses(isCurrent('cliente.inicio'))">Panel</Link>
+                <Link :href="safeRoute('cliente.catalogo.index')"   :class="navLinkClasses(isCurrent('cliente.catalogo.index'))">Catálogo</Link>
+                <Link :href="safeRoute('cliente.pedidos.index')"    :class="navLinkClasses(isCurrent('cliente.pedidos.index'))">Mis pedidos</Link>
+                <Link :href="safeRoute('cliente.perfil.edit')"      :class="navLinkClasses(isCurrent('cliente.perfil.edit'))">Perfil</Link>
+              </template>
+
+              <!-- PÚBLICO / OTROS -->
               <template v-else>
                 <Link :href="safeRoute('catalogo.index')" :class="navLinkClasses(isCurrent('catalogo.index'))">Catálogo</Link>
                 <Link :href="safeRoute('productos.index')" :class="navLinkClasses(isCurrent('productos.index'))">Productos</Link>
