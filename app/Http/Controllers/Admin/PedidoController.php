@@ -37,7 +37,7 @@ class PedidoController extends Controller
             $qLower = mb_strtolower($q, 'UTF-8');
             $query->where(function ($w) use ($qLower) {
                 $w->whereRaw('LOWER(folio) LIKE ?', ['%' . $qLower . '%'])
-                  ->orWhereRaw('LOWER(observaciones) LIKE ?', ['%' . $qLower . '%']);
+                    ->orWhereRaw('LOWER(observaciones) LIKE ?', ['%' . $qLower . '%']);
             });
         }
 
@@ -74,21 +74,21 @@ class PedidoController extends Controller
     public function store(Request $request)
     {
         $data = $request->validate([
-            'id_cliente'       => ['nullable','exists:users,id'],
-            'tipo_entrega'     => ['required','in:mostrador,domicilio'],
-            'estado'           => ['nullable','in:pendiente,preparando,listo,en_camino,entregado,cancelado'],
-            'observaciones'    => ['nullable','string'],
-            'total'            => ['required','numeric','min:0'],
+            'id_cliente'       => ['nullable', 'exists:users,id'],
+            'tipo_entrega'     => ['required', 'in:mostrador,domicilio'],
+            'estado'           => ['nullable', 'in:pendiente,preparando,listo,en_camino,entregado,cancelado'],
+            'observaciones'    => ['nullable', 'string'],
+            'total'            => ['required', 'numeric', 'min:0'],
 
-            'entrega_nombre'      => ['nullable','string','max:100'],
-            'entrega_telefono'    => ['nullable','string','max:20'],
-            'entrega_calle'       => ['nullable','string','max:100'],
-            'entrega_numero'      => ['nullable','string','max:20'],
-            'entrega_colonia'     => ['nullable','string','max:80'],
-            'entrega_municipio'   => ['nullable','string','max:80'],
-            'entrega_referencias' => ['nullable','string','max:150'],
+            'entrega_nombre'      => ['nullable', 'string', 'max:100'],
+            'entrega_telefono'    => ['nullable', 'string', 'max:20'],
+            'entrega_calle'       => ['nullable', 'string', 'max:100'],
+            'entrega_numero'      => ['nullable', 'string', 'max:20'],
+            'entrega_colonia'     => ['nullable', 'string', 'max:80'],
+            'entrega_municipio'   => ['nullable', 'string', 'max:80'],
+            'entrega_referencias' => ['nullable', 'string', 'max:150'],
 
-            'dom' => ['nullable','array'],
+            'dom' => ['nullable', 'array'],
         ]);
 
         $data['estado'] = $data['estado'] ?? 'pendiente';
@@ -304,8 +304,17 @@ class PedidoController extends Controller
                 'unidad' => 'piezas',
             ]);
 
+            // 🔔 Notificación correcta usando Notify::pedidoEstado
             try {
-                Notify::pedidoEstado($pedido, $anterior, $nuevo);
+                Notify::pedidoEstado(
+                    $pedido->id,   // int $pedidoId
+                    $nuevo,        // string $estado (nuevo estado)
+                    [
+                        'estado_anterior' => $anterior,
+                        'via'             => 'admin',
+                        'user_id'         => auth()->id(),
+                    ]
+                );
             } catch (\Throwable $e) {
                 \Log::warning('Notify::pedidoEstado error: ' . $e->getMessage());
             }
@@ -386,8 +395,17 @@ class PedidoController extends Controller
                 'unidad' => 'piezas',
             ]);
 
+            // 🔔 Notificación correcta usando Notify::pedidoCancelado
             try {
-                Notify::pedidoCancelado($pedido, $data['motivo']);
+                Notify::pedidoCancelado(
+                    $pedido->id,
+                    [
+                        'estado_anterior' => $anterior,
+                        'motivo'          => $data['motivo'],
+                        'via'             => 'admin',
+                        'user_id'         => auth()->id(),
+                    ]
+                );
             } catch (\Throwable $e) {
                 \Log::warning('Notify::pedidoCancelado error: ' . $e->getMessage());
             }
@@ -418,26 +436,42 @@ class PedidoController extends Controller
             $despues = User::find($data['repartidor_id']);
         }
 
-        $anterior = (string) ($pedido->asignado_a ?? '');
-        $nuevo    = (string) ($data['repartidor_id'] ?? '');
+        $anteriorId = (string) ($pedido->asignado_a ?? '');
+        $nuevoId    = (string) ($data['repartidor_id'] ?? '');
 
         $pedido->update(['asignado_a' => $data['repartidor_id'] ?: null]);
 
         PedidoLog::create([
             'pedido_id' => $pedido->id,
             'user_id'   => auth()->id(),
-            'accion'    => $nuevo !== '' ? 'asignado' : 'desasignado',
-            'de'        => $anterior,
-            'a'         => $nuevo,
+            'accion'    => $nuevoId !== '' ? 'asignado' : 'desasignado',
+            'de'        => $anteriorId,
+            'a'         => $nuevoId,
         ]);
 
-        BitacoraService::add('pedidos', $nuevo !== '' ? 'asignado' : 'desasignado', $pedido->id, [
-            'de' => $anterior,
-            'a'  => $nuevo,
+        BitacoraService::add('pedidos', $nuevoId !== '' ? 'asignado' : 'desasignado', $pedido->id, [
+            'de' => $anteriorId,
+            'a'  => $nuevoId,
         ]);
 
+        // 🔔 Notificación correcta usando Notify::pedidoAsignacion
         try {
-            Notify::pedidoAsignacion($pedido, $antes ?? null, $despues);
+            $accionTexto = $nuevoId !== ''
+                ? 'asignado al repartidor ' . ($despues?->name ?? ('ID ' . $nuevoId))
+                : 'dejado sin asignar';
+
+            Notify::pedidoAsignacion(
+                $pedido->id,      // int $pedidoId
+                $accionTexto,     // string $accion
+                [
+                    'anterior_id'      => $anteriorId,
+                    'nuevo_id'         => $nuevoId,
+                    'anterior_nombre'  => $antes?->name,
+                    'nuevo_nombre'     => $despues?->name,
+                    'via'              => 'admin',
+                    'user_id'          => auth()->id(),
+                ]
+            );
         } catch (\Throwable $e) {
             \Log::warning('Notify::pedidoAsignacion error: ' . $e->getMessage());
         }

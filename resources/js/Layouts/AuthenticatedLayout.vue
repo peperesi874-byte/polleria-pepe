@@ -20,7 +20,6 @@ const safeRoute = (name, params = {}) => {
     // Fallback para notificaciones vendedor
     if (name === 'vendedor.notificaciones.index') return '/vendedor/notificaciones'
 
-    // Fallback general
     return '#'
   }
 }
@@ -34,7 +33,8 @@ const unreadNotifications = computed(() =>
 const notifRoute = computed(() => {
   if (roleId.value === 1) return safeRoute('admin.notificaciones.index')
   if (roleId.value === 2) return safeRoute('vendedor.notificaciones.index')
-  // Cliente y público: por ahora los mando al catálogo
+  if (roleId.value === 3) return safeRoute('repartidor.pedidos.index') // por ahora
+  // Cliente / otros
   return safeRoute('catalogo.index')
 })
 
@@ -61,10 +61,11 @@ const navLinkClasses = (active) => [
 /* Inicio según rol (para el LOGO) */
 const homeRoute = computed(() => {
   try {
-    if (roleId.value === 1) return route('admin.dashboard')       // Admin → panel admin
-    if (roleId.value === 2) return route('vendedor.dashboard')    // Vendedor → panel vendedor
-    if (roleId.value === 4) return route('cliente.inicio')        // Cliente → panel cliente
-    return route('catalogo.index')                                // Público / otros → catálogo
+    if (roleId.value === 1) return route('admin.dashboard')        // Admin
+    if (roleId.value === 2) return route('vendedor.dashboard')     // Vendedor
+    if (roleId.value === 3) return route('repartidor.dashboard')   // Repartidor
+    if (roleId.value === 4) return route('cliente.inicio')         // Cliente
+    return route('catalogo.index')                                 // Público / otros
   } catch {
     return route('catalogo.index')
   }
@@ -73,15 +74,12 @@ const homeRoute = computed(() => {
 
 <template>
   <div class="min-h-screen bg-gray-50">
-
     <!-- 🔷 TOPBAR STICKY -->
     <nav class="bg-white border-b border-gray-200 sticky top-0 z-40">
       <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         <div class="flex h-16 items-center justify-between">
-
           <!-- IZQUIERDA: LOGO + MENÚ -->
           <div class="flex items-center gap-6">
-
             <!-- LOGO -->
             <Link :href="homeRoute" class="flex items-center gap-2">
               <span
@@ -93,7 +91,6 @@ const homeRoute = computed(() => {
 
             <!-- MENÚ POR ROL -->
             <div class="hidden md:flex items-center gap-1">
-
               <!-- ADMIN -->
               <template v-if="roleId === 1">
                 <Link :href="safeRoute('admin.dashboard')"         :class="navLinkClasses(isCurrent('admin.dashboard'))">Panel</Link>
@@ -112,9 +109,14 @@ const homeRoute = computed(() => {
                 <Link :href="safeRoute('vendedor.pedidos.index')"       :class="navLinkClasses(isCurrent('vendedor.pedidos.index'))">Pedidos</Link>
                 <Link :href="safeRoute('catalogo.index')"               :class="navLinkClasses(isCurrent('catalogo.index'))">Catálogo</Link>
                 <Link :href="safeRoute('vendedor.reportes.operativos')" :class="navLinkClasses(isCurrent('vendedor.reportes.operativos'))">Reportes</Link>
-
-                <!-- 🧾 Bitácora del vendedor -->
                 <Link :href="safeRoute('vendedor.bitacora.index')"      :class="navLinkClasses(isCurrent('vendedor.bitacora.index'))">Bitácora</Link>
+              </template>
+
+              <!-- REPARTIDOR -->
+              <template v-else-if="roleId === 3">
+                <Link :href="safeRoute('repartidor.dashboard')"      :class="navLinkClasses(isCurrent('repartidor.dashboard'))">Panel</Link>
+                <Link :href="safeRoute('repartidor.pedidos.index')"  :class="navLinkClasses(isCurrent('repartidor.pedidos.index'))">Pedidos</Link>
+                <!-- Nada de Productos ni Inventario para repartidor -->
               </template>
 
               <!-- CLIENTE -->
@@ -135,14 +137,12 @@ const homeRoute = computed(() => {
 
           <!-- DERECHA: NOTIFICACIONES + USUARIO -->
           <div class="flex items-center gap-4">
-
             <!-- 🔔 CAMPANITA -->
             <Link
               :href="notifRoute"
               class="relative inline-flex h-9 w-9 items-center justify-center rounded-full bg-gray-100 hover:bg-gray-200 transition"
             >
               <span aria-hidden="true">🔔</span>
-
               <span
                 class="absolute -top-1 -right-1 inline-flex items-center justify-center rounded-full px-1.5 py-0.5 text-[10px] font-semibold"
                 :class="unreadNotifications > 0
@@ -198,7 +198,6 @@ const homeRoute = computed(() => {
               </div>
             </div>
           </div>
-
         </div>
       </div>
     </nav>
@@ -214,6 +213,5 @@ const homeRoute = computed(() => {
     <main>
       <slot />
     </main>
-
   </div>
 </template>

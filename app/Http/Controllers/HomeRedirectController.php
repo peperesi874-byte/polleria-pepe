@@ -10,23 +10,46 @@ class HomeRedirectController extends Controller
     {
         $u = Auth::user();
 
-        // Si no hay usuario autenticado, redirige al login
         if (!$u) {
             return redirect()->route('login');
         }
 
         return match ($u->rol ?? $u->role ?? $u->role_id ?? 'cliente') {
-            // 👑 Administrador o vendedor → dashboard de admin
-            'admin', 'vendedor', 1 => redirect()->route('admin.dashboard'),
 
-            // 🚚 Repartidor → su propio panel (si existe)
-            'repartidor', 3        => redirect()->route('repartidor.inicio'),
+            /*
+            |--------------------------------------------------------------
+            | ADMIN (role_id = 1)
+            |--------------------------------------------------------------
+            */
+            'admin', 1 => redirect()->route('admin.dashboard'),
 
-            // 🧍‍♂️ Cliente → su panel principal
-            'cliente', 4           => redirect()->route('cliente.inicio'),
+            /*
+            |--------------------------------------------------------------
+            | VENDEDOR (role_id = 2)
+            |--------------------------------------------------------------
+            */
+            'vendedor', 2 => redirect()->route('vendedor.dashboard'),
 
-            // 🔄 Cualquier otro → catálogo público
-            default                => redirect()->route('catalogo.index'),
+            /*
+            |--------------------------------------------------------------
+            | REPARTIDOR (role_id = 3)
+            |--------------------------------------------------------------
+            */
+             'repartidor', 3        => redirect()->route('repartidor.dashboard'),
+
+            /*
+            |--------------------------------------------------------------
+            | CLIENTE (role_id = 4)
+            |--------------------------------------------------------------
+            */
+            'cliente', 4 => redirect()->route('cliente.inicio'),
+
+            /*
+            |--------------------------------------------------------------
+            | DEFAULT → catálogo público
+            |--------------------------------------------------------------
+            */
+            default => redirect()->route('catalogo.index'),
         };
     }
 }

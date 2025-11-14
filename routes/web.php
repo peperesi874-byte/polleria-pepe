@@ -26,6 +26,10 @@ use App\Http\Controllers\Vendedor\PedidoTicketController as VendedorPedidoTicket
 use App\Http\Controllers\Vendedor\NotificacionesController as VendedorNotificacionesController;
 use App\Http\Controllers\Vendedor\BitacoraController as VendedorBitacoraController;
 
+// Repartidor
+use App\Http\Controllers\Repartidor\DashboardController as RepartidorDashboardController;
+use App\Http\Controllers\Repartidor\PedidosController as RepartidorPedidosController;
+
 // Cliente
 use App\Http\Controllers\ClientePedidoController;
 use App\Http\Controllers\CartController;
@@ -83,7 +87,8 @@ Route::get('/redirect-by-role', function () {
     return match ($role) {
         1       => redirect()->route('admin.dashboard'),
         2       => redirect()->route('vendedor.dashboard'),
-        3, 4    => redirect()->route('catalogo.index'),
+        3       => redirect()->route('repartidor.pedidos.index'),
+        4       => redirect()->route('cliente.inicio'),
         default => redirect()->route('catalogo.index'),
     };
 })->name('redirect.by.role');
@@ -272,6 +277,29 @@ Route::prefix('vendedor')
         // Ticket del pedido
         Route::get('/pedidos/{pedido}/ticket', [VendedorPedidoTicketController::class, 'show'])
             ->name('pedidos.ticket');
+    });
+
+/*
+|--------------------------------------------------------------------------
+| PANEL REPARTIDOR (role_id = 3)
+|--------------------------------------------------------------------------
+*/
+Route::prefix('repartidor')
+    ->as('repartidor.')
+    ->middleware(['auth', 'role:3'])
+    ->group(function () {
+        
+    // 🌟 Panel principal del repartidor
+        Route::get('/dashboard', [RepartidorDashboardController::class, 'index'])
+            ->name('dashboard');
+            
+        // 📦 Pedidos asignados al repartidor
+        Route::get('/pedidos-asignados', [RepartidorPedidosController::class, 'index'])
+            ->name('pedidos.index');
+
+        // 🔄 Cambiar estado (en_reparto / entregado)
+        Route::post('/pedidos/{pedido}/estado', [RepartidorPedidosController::class, 'cambiarEstado'])
+            ->name('pedidos.cambiar-estado');
     });
 
 /*
