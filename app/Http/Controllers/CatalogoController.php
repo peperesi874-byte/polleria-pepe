@@ -45,15 +45,18 @@ class CatalogoController extends Controller
             ->through(function (Producto $p) {
                 // Resolver URL pública de imagen
                 $url = null;
+
                 if ($p->imagen) {
                     if (preg_match('~^https?://~i', $p->imagen)) {
-                        $url = $p->imagen; // ya es absoluta
+                        // ya es absoluta
+                        $url = $p->imagen;
                     } else {
                         // asumimos que está en storage/app/public/...
                         $url = Storage::url(ltrim($p->imagen, '/'));
                     }
                 } else {
-                    $url = asset('logo.jpg'); // fallback
+                    // fallback si no tiene imagen
+                    $url = asset('logo.jpg');
                 }
 
                 return [
@@ -62,8 +65,8 @@ class CatalogoController extends Controller
                     'descripcion' => $p->descripcion,
                     'precio'      => (float) $p->precio,
                     'stock'       => (int) $p->stock,
-                    // 👇 clave que consumirá el front (ProductCard.vue)
-                    'imagen_url'  => $url,
+                    // 👇 clave en camelCase para Vue (imagenUrl)
+                    'imagenUrl'   => $url,
                 ];
             })
             ->withQueryString();
