@@ -29,6 +29,8 @@ use App\Http\Controllers\Vendedor\BitacoraController as VendedorBitacoraControll
 // Repartidor
 use App\Http\Controllers\Repartidor\DashboardController as RepartidorDashboardController;
 use App\Http\Controllers\Repartidor\PedidosController as RepartidorPedidosController;
+use App\Http\Controllers\Repartidor\NotificacionesController as RepartidorNotificacionesController;
+
 
 // Cliente
 use App\Http\Controllers\ClientePedidoController;
@@ -53,6 +55,23 @@ Route::get('/catalogo', [CatalogoController::class, 'index'])
 
 Route::resource('productos', ProductoController::class)
     ->names('productos');
+
+    /*
+|--------------------------------------------------------------------------
+| PÁGINAS LEGALES (PÚBLICAS)
+|--------------------------------------------------------------------------
+*/
+Route::prefix('legal')
+    ->as('legal.')
+    ->group(function () {
+        // Términos y condiciones
+        Route::inertia('/terminos', 'Legal/Terminos')
+            ->name('terminos');
+
+        // Aviso de privacidad
+        Route::inertia('/privacidad', 'Legal/Privacidad')
+            ->name('privacidad');
+    });
 
 /*
 |--------------------------------------------------------------------------
@@ -87,7 +106,7 @@ Route::get('/redirect-by-role', function () {
     return match ($role) {
         1       => redirect()->route('admin.dashboard'),
         2       => redirect()->route('vendedor.dashboard'),
-        3       => redirect()->route('repartidor.pedidos.index'),
+        3       => redirect()->route('repartidor.dashboard'),
         4       => redirect()->route('cliente.inicio'),
         default => redirect()->route('catalogo.index'),
     };
@@ -132,6 +151,14 @@ Route::prefix('admin')
             Route::put('/usuarios/{user}', 'update')->name('usuarios.update');
             Route::delete('/usuarios/{user}', 'destroy')->name('usuarios.destroy');
         });
+
+        // Reporte: Ingresos de ventas (solo pedidos entregados)
+Route::get('/reportes/ingresos', [ReportesController::class, 'ingresos'])
+    ->name('reportes.ingresos');
+
+Route::get('/reportes/ingresos/export/csv', [ReportesController::class, 'exportIngresosCsv'])
+    ->name('reportes.ingresos.csv');
+
 
         /*
         | REPORTES (CATÁLOGO, ETC.)
@@ -288,11 +315,11 @@ Route::prefix('repartidor')
     ->as('repartidor.')
     ->middleware(['auth', 'role:3'])
     ->group(function () {
-        
-    // 🌟 Panel principal del repartidor
+
+        // 🌟 Panel principal del repartidor
         Route::get('/dashboard', [RepartidorDashboardController::class, 'index'])
             ->name('dashboard');
-            
+
         // 📦 Pedidos asignados al repartidor
         Route::get('/pedidos-asignados', [RepartidorPedidosController::class, 'index'])
             ->name('pedidos.index');
@@ -300,7 +327,12 @@ Route::prefix('repartidor')
         // 🔄 Cambiar estado (en_reparto / entregado)
         Route::post('/pedidos/{pedido}/estado', [RepartidorPedidosController::class, 'cambiarEstado'])
             ->name('pedidos.cambiar-estado');
+
+        // 🔔 Notificaciones del repartidor
+        Route::get('/notificaciones', [RepartidorNotificacionesController::class, 'index'])
+            ->name('notificaciones.index');
     });
+
 
 /*
 |--------------------------------------------------------------------------

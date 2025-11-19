@@ -1,8 +1,15 @@
 <script setup>
+import { computed } from 'vue'
+
 const props = defineProps({
   producto: { type: Object, required: true },
 })
 const emit = defineEmits(['add', 'preview'])
+
+const imgSrc = computed(() => {
+  const p = props.producto || {}
+  return p.imagenUrl || null   // 👈 directo
+})
 </script>
 
 <template>
@@ -16,11 +23,11 @@ const emit = defineEmits(['add', 'preview'])
       @click="emit('preview', props.producto)"
     >
       <img
-  v-if="props.producto?.imagen || props.producto?.imagenUrl"
-  :src="props.producto.imagen || props.producto.imagenUrl"
-  :alt="props.producto.nombre"
-  class="h-full w-full object-cover transition group-hover:scale-[1.03]"
-/>
+        v-if="imgSrc"
+        :src="imgSrc"
+        :alt="props.producto?.nombre"
+        class="h-full w-full object-cover transition group-hover:scale-[1.03]"
+      />
       <div v-else class="text-neutral-400">Sin imagen</div>
     </button>
 

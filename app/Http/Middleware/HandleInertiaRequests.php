@@ -3,6 +3,7 @@
 namespace App\Http\Middleware;
 
 use App\Models\Notificacion;
+use App\Models\Pedido;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Inertia\Middleware;
@@ -56,20 +57,66 @@ class HandleInertiaRequests extends Middleware
                 'error'   => fn () => $request->session()->get('error'),
             ],
 
-            // 📩 Notificaciones (contador global para la campanita)
-            'notificaciones' => function () {
-                if (!Auth::check()) {
+            // 📩 Notificaciones / pedidos para la campanita
+            'notificaciones' => function () use ($request) {
+                $user = $request->user();
+
+                if (!$user) {
                     return [
-                        'unread_count' => 0,
+                        'unread_count'       => 0,
+                        'repartidor_pedidos' => [],
                     ];
                 }
 
-                $userId = Auth::id();
+                $role  = (int) ($user->role_id ?? 0);
+                $base  = Notificacion::query();
+                $pedidosRepartidor = [];
+
+                // 🧑‍🍳 REPARTIDOR: notis relacionadas a sus pedidos + lista de pedidos asignados
+                if ($role === 3) {
+                    // Notificaciones de la tabla notificaciones
+                    $base
+                        ->whereIn('tipo', ['pedido.asignacion', 'pedido.estado', 'pedido.cancelado'])
+                        ->where(function ($q) use ($user) {
+                            $q->where('meta->repartidor_nuevo', $user->id)
+                              ->orWhere('meta->repartidor_id', $user->id);
+                        });
+
+                    // Además, sus pedidos asignados (para la pestañita flotante)
+                    $pedidosRepartidor = Pedido::query()
+                        ->where('asignado_a', $user->id)
+                        ->whereIn('estado', [
+                            'pendiente',
+                            'confirmado',
+                            'en_preparacion',
+                            'listo',
+                            'en_camino',
+                            'en_reparto',
+                        ])
+                        ->orderByDesc('created_at')
+                        ->limit(5)
+                        ->get([
+                            'id',
+                            'folio',
+                            'estado',
+                            'total',
+                            'created_at',
+                        ]);
+                }
+                // 🧑‍💼 ADMIN / VENDEDOR: por user_id como ya lo tenías
+                elseif (in_array($role, [1, 2], true)) {
+                    $base->where('user_id', $user->id);
+                }
+                // Cliente u otros: sin notificaciones globales por ahora
+                else {
+                    $base->whereRaw('1 = 0');
+                }
 
                 return [
-                    'unread_count' => Notificacion::where('user_id', $userId)
+                    'unread_count'       => (clone $base)
                         ->where('leida', false)
                         ->count(),
+                    'repartidor_pedidos' => $pedidosRepartidor,
                 ];
             },
         ]);

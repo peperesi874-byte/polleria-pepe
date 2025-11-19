@@ -45,13 +45,14 @@ function initials(str) {
             </div>
           </div>
 
-          <!-- Botón Panel -->
+          <!-- Botón Panel (usa redirect por rol) -->
           <a
-            :href="safeRoute('admin.dashboard')"
-            class="rounded-lg border border-neutral-300 bg-white px-3 py-1.5 text-sm font-medium text-neutral-700 hover:border-amber-500 hover:text-amber-600 transition"
+          :href="safeRoute('dashboard')"
+          class="rounded-lg border border-neutral-300 bg-white px-3 py-1.5 text-sm font-medium text-neutral-700 hover:border-amber-500 hover:text-amber-600 transition"
           >
-            Panel
+          Panel
           </a>
+
 
           <!-- Botón Cerrar sesión -->
           <form

@@ -1,5 +1,5 @@
 <script setup>
-import { Link, usePage } from '@inertiajs/vue3'
+import { Link, usePage, router } from '@inertiajs/vue3'
 import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import { route } from 'ziggy-js'
 
@@ -24,29 +24,55 @@ const safeRoute = (name, params = {}) => {
   }
 }
 
-/* 🔔 Contador de notificaciones */
+/* 🔔 Contador de notificaciones "crudo" (tabla notificaciones) */
 const unreadNotifications = computed(() =>
   Number(page.props?.notificaciones?.unread_count ?? 0)
 )
 
-/* Ruta de notificaciones según rol */
+/* Pedidos asignados al repartidor (para el popover) */
+const repartidorPedidos = computed(() =>
+  roleId.value === 3
+    ? (page.props?.notificaciones?.repartidor_pedidos ?? [])
+    : []
+)
+
+/* Conteo general que muestra la campanita */
+const notifCount = computed(() => {
+  if (roleId.value === 3) {
+    return repartidorPedidos.value.length
+  }
+  return unreadNotifications.value
+})
+
+/* Ruta de notificaciones según rol (solo se usa para roles != 3) */
 const notifRoute = computed(() => {
   if (roleId.value === 1) return safeRoute('admin.notificaciones.index')
   if (roleId.value === 2) return safeRoute('vendedor.notificaciones.index')
-  if (roleId.value === 3) return safeRoute('repartidor.pedidos.index') // por ahora
+  // para repartidor ya no se usa porque tiene popover propio
   // Cliente / otros
   return safeRoute('catalogo.index')
 })
 
 /* Dropdown usuario */
 const open = ref(false)
+const notifOpen = ref(false)
+
 const toggle = () => { open.value = !open.value }
+const toggleNotif = () => { notifOpen.value = !notifOpen.value }
+
 const close = (e) => {
   const t = e?.target
   if (!t || !(t.closest && t.closest('#user-menu'))) open.value = false
+  if (!t || !(t.closest && t.closest('#notif-menu'))) notifOpen.value = false
 }
+
 onMounted(() => document.addEventListener('click', close))
 onBeforeUnmount(() => document.removeEventListener('click', close))
+
+const goRepartidorPedidos = () => {
+  notifOpen.value = false
+  router.visit(safeRoute('repartidor.pedidos.index'))
+}
 
 /* Helpers navegación activa */
 const isCurrent = (name) => {
@@ -138,18 +164,105 @@ const homeRoute = computed(() => {
           <!-- DERECHA: NOTIFICACIONES + USUARIO -->
           <div class="flex items-center gap-4">
             <!-- 🔔 CAMPANITA -->
+            <!-- Repartidor: popover con pedidos asignados -->
+            <div
+              v-if="roleId === 3"
+              id="notif-menu"
+              class="relative"
+            >
+              <button
+                type="button"
+                @click.stop="toggleNotif"
+                class="relative inline-flex h-9 w-9 items-center justify-center rounded-full bg-gray-100 hover:bg-gray-200 transition"
+              >
+                <span aria-hidden="true">🔔</span>
+                <span
+                  class="absolute -top-1 -right-1 inline-flex items-center justify-center rounded-full px-1.5 py-0.5 text-[10px] font-semibold"
+                  :class="notifCount > 0 ? 'bg-red-500 text-white' : 'bg-gray-300 text-gray-700'"
+                >
+                  {{ notifCount > 9 ? '9+' : notifCount }}
+                </span>
+              </button>
+
+              <!-- Panel flotante -->
+              <div
+                v-show="notifOpen"
+                class="absolute right-0 mt-2 w-80 max-h-96 overflow-auto rounded-2xl border bg-white shadow-lg text-sm z-50"
+              >
+                <div class="flex items-center justify-between px-4 py-3 border-b">
+                  <p class="font-semibold text-neutral-900 text-sm">
+                    Notificaciones
+                  </p>
+                  <button
+                    type="button"
+                    class="text-xs text-neutral-400 hover:text-neutral-600"
+                    @click.stop="notifOpen = false"
+                  >
+                    Cerrar
+                  </button>
+                </div>
+
+                <div
+                  v-if="!repartidorPedidos.length"
+                  class="px-4 py-6 text-xs text-neutral-500"
+                >
+                  No tienes pedidos asignados por ahora.
+                </div>
+
+                <ul
+                  v-else
+                  class="divide-y"
+                >
+                  <li
+                    v-for="p in repartidorPedidos"
+                    :key="p.id"
+                  >
+                    <button
+                      type="button"
+                      class="w-full text-left px-4 py-3 hover:bg-neutral-50 flex flex-col gap-1"
+                      @click="goRepartidorPedidos"
+                    >
+                      <span class="text-xs text-neutral-400">
+                        Pedido asignado
+                      </span>
+                      <span class="text-sm font-medium text-neutral-900">
+                        Pedido #{{ p.folio ?? p.id }}
+                      </span>
+                      <span class="text-xs text-neutral-500">
+                        Total:
+                        {{
+                          new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' })
+                            .format(Number(p.total ?? 0))
+                        }}
+                      </span>
+                    </button>
+                  </li>
+                </ul>
+
+                <div class="border-t px-4 py-2 text-right">
+                  <Link
+                    :href="safeRoute('repartidor.pedidos.index')"
+                    class="text-xs font-semibold text-indigo-600 hover:text-indigo-700"
+                    @click="notifOpen = false"
+                  >
+                    Ver todos →
+                  </Link>
+                </div>
+              </div>
+            </div>
+
+            <!-- Otros roles: link normal a página de notificaciones -->
             <Link
+              v-else
               :href="notifRoute"
               class="relative inline-flex h-9 w-9 items-center justify-center rounded-full bg-gray-100 hover:bg-gray-200 transition"
             >
               <span aria-hidden="true">🔔</span>
               <span
                 class="absolute -top-1 -right-1 inline-flex items-center justify-center rounded-full px-1.5 py-0.5 text-[10px] font-semibold"
-                :class="unreadNotifications > 0
-                  ? 'bg-red-500 text-white'
-                  : 'bg-gray-300 text-gray-700'"
+                :class="notifCount > 0 ? 'bg-red-500 text-white' : 'bg-gray-300 text-gray-700'"
               >
-                {{ unreadNotifications > 9 ? '9+' : unreadNotifications }}
+                {{ notifCount > 9 ? '9+' : notifCount }}
               </span>
             </Link>
 

@@ -20,6 +20,10 @@ const INVENTARIO_EXPORT_CSV_URL      = '/admin/inventario/export/csv'
 const INVENTARIO_EXPORT_PDF_URL      = '/admin/inventario/export/pdf'
 const INVENTARIO_HISTORIAL_CSV_URL   = '/admin/inventario/movimientos/export/csv'
 const REPORTES_PRODUCTOS_CSV_URL     = '/admin/reportes/productos/export/csv'
+
+// 👇 NUEVO: Reporte de ingresos
+const REPORTES_INGRESOS_URL          = '/admin/reportes/ingresos'
+const REPORTES_INGRESOS_CSV_URL      = '/admin/reportes/ingresos/export/csv'
 </script>
 
 <template>
@@ -169,11 +173,35 @@ const REPORTES_PRODUCTOS_CSV_URL     = '/admin/reportes/productos/export/csv'
             </div>
           </div>
 
-          <div class="rounded-2xl border border-dashed border-gray-300 p-5">
-            <div class="flex h-full items-center justify-center text-gray-400 text-sm">
-              Próximo reporte…
+          <!-- 🔥 NUEVO: Reemplazo del "Próximo reporte…" sin tocar lo demás -->
+          <div :class="card">
+            <div class="flex items-start gap-4">
+              <div class="rounded-xl bg-amber-50 p-3 text-amber-700">
+                <!-- ícono de dinero -->
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M12 1.5c-5.8 0-10.5 4.7-10.5 10.5S6.2 22.5 12 22.5 22.5 17.8 22.5 12 17.8 1.5 12 1.5Zm.8 16.4v1.1h-1.6v-1.1c-1.7-.2-3-1.3-3.1-3.1h2c.1.9.7 1.6 2 1.6 1.2 0 1.9-.6 1.9-1.4 0-.7-.5-1.1-1.8-1.4l-1-.2c-2-.4-3.1-1.3-3.1-3 0-1.6 1.2-2.8 3-3.1V4.5h1.6v1.1c1.6.2 2.7 1.2 2.9 2.8h-2c-.1-.8-.7-1.4-1.7-1.4-1.1 0-1.8.5-1.8 1.3 0 .7.5 1.1 1.8 1.3l.9.2c2.1.4 3.1 1.3 3.1 3 0 1.7-1.2 3-3.1 3.2Z"/>
+                </svg>
+              </div>
+              <div class="flex-1">
+                <h4 class="font-medium text-gray-900">Ingresos (ventas entregadas)</h4>
+                <p class="mt-1 text-sm text-gray-500">
+                  Consulta y exporta ingresos diarios con filtro de fechas.
+                </p>
+
+                <div class="mt-4 flex flex-wrap items-center gap-2">
+                  <!-- 👀 Ver reporte (URL directa a la vista) -->
+                  <a :href="REPORTES_INGRESOS_URL" :class="btn('solid')">
+                    Ver reporte
+                  </a>
+                  <!-- ⬇ Exportar CSV (URL directa) -->
+                  <a :href="REPORTES_INGRESOS_CSV_URL" :class="btn('outline')">
+                    CSV
+                  </a>
+                </div>
+              </div>
             </div>
           </div>
+          <!-- /NUEVO -->
         </div>
       </section>
     </div>

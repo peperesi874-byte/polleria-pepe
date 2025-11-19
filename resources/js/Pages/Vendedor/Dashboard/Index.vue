@@ -40,6 +40,9 @@ function goPedidosEstado (estado) {
     <!-- Header -->
     <template #header>
       <div>
+         <p class="mt-1 text-sm text-neutral-500 max-w-xl">
+            Resumen rápido de tus pedidos y acceso a herramientas de venta.
+          </p>
         <h1 class="text-2xl font-semibold text-gray-900">
           {{ saludo }}, {{ userName }} 👋
         </h1>
