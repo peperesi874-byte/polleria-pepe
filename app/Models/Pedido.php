@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use App\Models\Direccion;
 
 class Pedido extends Model
 {
@@ -13,6 +14,7 @@ class Pedido extends Model
     protected $fillable = [
         'folio',
         'id_cliente',
+        'direccion_id',      // 👈 IMPORTANTE: permitir guardar la dirección
         'tipo_entrega',      // mostrador | domicilio
         'estado',            // pendiente, preparando, listo, en_camino, entregado, cancelado
         'observaciones',
@@ -59,5 +61,13 @@ class Pedido extends Model
     public function logs(): HasMany
     {
         return $this->hasMany(PedidoLog::class, 'pedido_id');
+    }
+
+    /**
+     * Dirección asociada al pedido (usa la columna direccion_id).
+     */
+    public function direccion(): BelongsTo
+    {
+        return $this->belongsTo(Direccion::class, 'direccion_id');
     }
 }

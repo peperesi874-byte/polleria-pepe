@@ -1,6 +1,7 @@
 <script setup>
 import { router, usePage } from '@inertiajs/vue3'
 import { ref, computed, watch } from 'vue'
+import { route } from 'ziggy-js' // 👈 necesario para route('...')
 
 import CatalogLayout from '@/Layouts/CatalogLayout.vue'
 import ProductCard from '@/Components/ProductCard.vue'
@@ -10,6 +11,7 @@ function scrollAProductos () {
   const el = document.getElementById('grid-productos')
   el?.scrollIntoView({ behavior: 'smooth', block: 'start' })
 }
+
 function compactParams(obj) {
   const o = { ...obj }
   Object.keys(o).forEach(k => (o[k] === null || o[k] === '' || o[k] === undefined) && delete o[k])
@@ -28,6 +30,7 @@ const filters = ref({
   sort: page.props.filters?.sort ?? 'nombre',
   dir:  page.props.filters?.dir  ?? 'asc',
 })
+
 watch(() => page.props.filters, f => {
   if (!f) return
   filters.value = {
@@ -74,9 +77,44 @@ const hayResultados = computed(() => items.value.length > 0)
 
 const quickOpen = ref(false)
 const quickItem = ref(null)
-function openPreview(p) { quickItem.value = p; quickOpen.value = true }
-function closePreview() { quickOpen.value = false }
-function addFromQuick(p) { alert(`Añadido: ${p?.nombre}`); quickOpen.value = false }
+
+function openPreview(p) {
+  quickItem.value = p
+  quickOpen.value = true
+}
+
+function closePreview() {
+  quickOpen.value = false
+}
+
+// 🔹 NUEVO: función para agregar un producto al carrito de cliente
+function addToCart(producto) {
+  if (!producto?.id) return
+
+  router.post(
+    route('cliente.carrito.add'),
+    {
+      producto_id: producto.id,
+      qty: 1,
+    },
+    {
+      preserveScroll: true,
+      onSuccess: () => {
+        // Mensaje sencillo al usuario
+        alert('Producto añadido al carrito')
+      },
+    }
+  )
+}
+
+
+// Si quieres, luego podemos usar esto para que el quick view también agregue al carrito
+function addFromQuick(p) {
+  if (p) {
+    addToCart(p)
+  }
+  quickOpen.value = false
+}
 </script>
 
 <template>
@@ -149,13 +187,16 @@ function addFromQuick(p) { alert(`Añadido: ${p?.nombre}`); quickOpen.value = fa
         No encontramos productos con los filtros actuales.
       </div>
 
-      <div id="grid-productos" v-else
-           class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+      <div
+        id="grid-productos"
+        v-else
+        class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6"
+      >
         <ProductCard
           v-for="p in items"
           :key="p.id"
           :producto="p"
-          @add="() => alert('Pronto: carrito 🙂')"
+          @add="() => addToCart(p)"
           @preview="openPreview(p)"
         />
       </div>
@@ -174,7 +215,11 @@ function addFromQuick(p) { alert(`Añadido: ${p?.nombre}`); quickOpen.value = fa
       </div>
     </section>
 
-    <ProductQuickView :open="quickOpen" :product="quickItem"
-                      @close="closePreview" @add="addFromQuick" />
+    <ProductQuickView
+      :open="quickOpen"
+      :product="quickItem"
+      @close="closePreview"
+      @add="addFromQuick"
+    />
   </CatalogLayout>
 </template>

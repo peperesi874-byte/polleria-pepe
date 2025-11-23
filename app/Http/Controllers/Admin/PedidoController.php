@@ -15,6 +15,7 @@ use Illuminate\Support\Arr;
 use App\Models\Inventario;
 use App\Models\InventarioMovimiento;
 use App\Services\Notify;
+use App\Services\NotificacionClienteService;
 
 class PedidoController extends Controller
 {
@@ -229,6 +230,7 @@ class PedidoController extends Controller
         $anterior = $pedido->estado;
         $nuevo    = $data['estado'];
 
+        // Validación de stock antes de tocar nada
         if (in_array($nuevo, ['listo', 'entregado'], true)) {
             $pedido->loadMissing('items.producto');
             foreach ($pedido->items as $it) {
@@ -245,8 +247,10 @@ class PedidoController extends Controller
         }
 
         DB::transaction(function () use ($pedido, $anterior, $nuevo) {
+            // 1) Actualizar estado
             $pedido->update(['estado' => $nuevo]);
 
+            // 2) Descuento de inventario si aplica
             if (in_array($nuevo, ['listo', 'entregado'], true)) {
                 $pedido->loadMissing('items.producto');
 
@@ -290,6 +294,7 @@ class PedidoController extends Controller
                 }
             }
 
+            // 3) Log de cambio de estado
             PedidoLog::create([
                 'pedido_id' => $pedido->id,
                 'user_id'   => auth()->id(),
@@ -298,17 +303,18 @@ class PedidoController extends Controller
                 'a'         => $nuevo,
             ]);
 
+            // 4) Bitácora
             BitacoraService::add('pedidos', 'estado_cambiado', $pedido->id, [
                 'de'     => $anterior,
                 'a'      => $nuevo,
                 'unidad' => 'piezas',
             ]);
 
-            // 🔔 Notificación correcta usando Notify::pedidoEstado
+            // 5) Notificación global (admin/vendedor)
             try {
                 Notify::pedidoEstado(
-                    $pedido->id,   // int $pedidoId
-                    $nuevo,        // string $estado (nuevo estado)
+                    $pedido->id,
+                    $nuevo,
                     [
                         'estado_anterior' => $anterior,
                         'via'             => 'admin',
@@ -317,6 +323,13 @@ class PedidoController extends Controller
                 );
             } catch (\Throwable $e) {
                 \Log::warning('Notify::pedidoEstado error: ' . $e->getMessage());
+            }
+
+            // 6) Notificación para el cliente (NO rompe nada si falla)
+            try {
+                NotificacionClienteService::pedidoCambioEstado($pedido, $anterior, $nuevo);
+            } catch (\Throwable $e) {
+                \Log::warning('NotificacionClienteService::pedidoCambioEstado error: ' . $e->getMessage());
             }
         });
 
@@ -395,7 +408,7 @@ class PedidoController extends Controller
                 'unidad' => 'piezas',
             ]);
 
-            // 🔔 Notificación correcta usando Notify::pedidoCancelado
+            // Notificación correcta usando Notify::pedidoCancelado
             try {
                 Notify::pedidoCancelado(
                     $pedido->id,
@@ -454,15 +467,15 @@ class PedidoController extends Controller
             'a'  => $nuevoId,
         ]);
 
-        // 🔔 Notificación correcta usando Notify::pedidoAsignacion
+        // Notificación correcta usando Notify::pedidoAsignacion
         try {
             $accionTexto = $nuevoId !== ''
                 ? 'asignado al repartidor ' . ($despues?->name ?? ('ID ' . $nuevoId))
                 : 'dejado sin asignar';
 
             Notify::pedidoAsignacion(
-                $pedido->id,      // int $pedidoId
-                $accionTexto,     // string $accion
+                $pedido->id,
+                $accionTexto,
                 [
                     'anterior_id'      => $anteriorId,
                     'nuevo_id'         => $nuevoId,

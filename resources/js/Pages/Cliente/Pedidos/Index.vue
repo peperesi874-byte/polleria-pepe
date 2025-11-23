@@ -77,6 +77,8 @@ const estadoClase = (estado) => {
               <th class="px-5 py-3">Fecha</th>
               <th class="px-5 py-3">Estado</th>
               <th class="px-5 py-3 text-right">Total</th>
+              <!-- 🔹 Nueva columna -->
+              <th class="px-5 py-3 text-center">Acciones</th>
             </tr>
           </thead>
 
@@ -106,6 +108,17 @@ const estadoClase = (estado) => {
               <td class="px-5 py-4 text-right font-semibold text-slate-900">
                 {{ fmtMoney(p.total) }}
               </td>
+
+              <!-- 🔹 Celda con botón "Ver detalles" -->
+              <td class="px-5 py-4 text-center">
+  <Link
+    :href="route('cliente.checkout.confirmacion', p.id)"
+    class="inline-flex items-center gap-1 rounded-full bg-indigo-600 px-4 py-1.5 text-xs font-semibold text-white hover:bg-indigo-700 active:scale-95 transition"
+  >
+    Ver detalles
+  </Link>
+</td>
+
             </tr>
           </tbody>
         </table>

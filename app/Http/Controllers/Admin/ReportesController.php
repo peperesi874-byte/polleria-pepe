@@ -90,6 +90,10 @@ class ReportesController extends Controller
             ->orderBy('fecha')
             ->get();
 
+        // 🔢 Totales para la fila final
+        $totalPedidos  = $rows->sum('pedidos');
+        $totalIngresos = $rows->sum('ingresos');
+
         BitacoraService::add('reportes', 'exportar_csv', null, [
             'reporte' => 'ingresos',
             'desde'   => $desde,
@@ -102,10 +106,14 @@ class ReportesController extends Controller
             'Content-Disposition' => "attachment; filename=\"$filename\"",
         ];
 
-        return Response::stream(function () use ($rows) {
+        return Response::stream(function () use ($rows, $totalPedidos, $totalIngresos) {
             echo "\xEF\xBB\xBF"; // BOM UTF-8
             $out = fopen('php://output', 'w');
+
+            // Encabezados
             fputcsv($out, ['Fecha', 'Pedidos', 'Ingresos']);
+
+            // Filas normales
             foreach ($rows as $r) {
                 fputcsv($out, [
                     $r->fecha,
@@ -113,6 +121,14 @@ class ReportesController extends Controller
                     number_format((float) ($r->ingresos ?? 0), 2),
                 ]);
             }
+
+            // Fila TOTAL
+            fputcsv($out, [
+                'TOTAL',
+                (int) $totalPedidos,
+                number_format((float) $totalIngresos, 2),
+            ]);
+
             fclose($out);
         }, 200, $headers);
     }

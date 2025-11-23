@@ -6,8 +6,8 @@ use App\Http\Controllers\Controller;
 use App\Models\Direccion;
 use App\Models\Pedido;
 use App\Models\PedidoItem; // si no existe, puedes borrar esta línea
-use App\Models\Notificacion; // 👈 agregado
-use App\Models\User;         // 👈 agregado
+use App\Models\Notificacion;
+use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
@@ -51,11 +51,10 @@ class CheckoutController extends Controller
             ->orderByDesc('id')
             ->get();
 
-        // Mandar al frontend como { items: [...] }
         return Inertia::render('Cliente/Checkout', [
             'cart'            => ['items' => $cartItems],
             'direcciones'     => $direcciones,
-            'direccionPerfil' => (string) ($user->direccion ?? ''), // 👈 línea agregada
+            'direccionPerfil' => (string) ($user->direccion ?? ''),
         ]);
     }
 
@@ -146,6 +145,22 @@ class CheckoutController extends Controller
             $total += $precio * $qty;
         }
 
+        // 🔹 También generamos un resumen normalizado de items para la confirmación
+        $itemsResumen = collect($items)->map(function ($it) {
+            $precio = (float) ($it['precio'] ?? $it['price'] ?? 0);
+            $qty    = (int)   ($it['cantidad'] ?? $it['qty'] ?? 0);
+
+            return [
+                'nombre'   => (string)($it['nombre'] ?? $it['name'] ?? ''),
+                'precio'   => $precio,
+                'cantidad' => $qty,
+                'subtotal' => $precio * $qty,
+            ];
+        })->values()->all();
+
+        // Lo guardamos en sesión (flash) para usarlo en la confirmación si no hay items en BD
+        session()->flash('pedido_resumen_items', $itemsResumen);
+
         // 5) Crear pedido (+ items) en transacción
         $pedido = DB::transaction(function () use ($user, $direccionId, $tipoEntrega, $total, $data, $items) {
             $pedido = Pedido::create([
@@ -160,28 +175,26 @@ class CheckoutController extends Controller
             ]);
 
             // Crear items si el modelo existe y la relación está definida
-            if (class_exists(PedidoItem::class) && method_exists($pedido, 'items')) {
-                foreach ($items as $it) {
-                    $precio = (float) ($it['precio'] ?? $it['price'] ?? 0);
-                    $qty    = (int)   ($it['cantidad'] ?? $it['qty'] ?? 0);
-                    $nombre = (string)($it['nombre'] ?? $it['name'] ?? '');
-                    $prodId = $it['id'] ?? $it['producto_id'] ?? null;
+           // Crear items si el modelo existe y la relación está definida
+if (class_exists(PedidoItem::class) && method_exists($pedido, 'items')) {
+    foreach ($items as $it) {
+        $precio = (float) ($it['precio'] ?? $it['price'] ?? 0);
+        $qty    = (int)   ($it['cantidad'] ?? $it['qty'] ?? 0);
+        $prodId = $it['id'] ?? $it['producto_id'] ?? null;
 
-                    if ($qty <= 0 || $precio < 0) continue;
+        if ($qty <= 0 || $precio < 0 || !$prodId) {
+            continue;
+        }
 
-                    try {
-                        $pedido->items()->create([
-                            'producto_id' => $prodId,
-                            'nombre'      => $nombre,
-                            'precio'      => $precio,
-                            'cantidad'    => $qty,
-                            'subtotal'    => $precio * $qty,
-                        ]);
-                    } catch (\Throwable $e) {
-                        // Si la estructura de pedido_items difiere, no rompemos el flujo
-                    }
-                }
-            }
+        // 👇 columnas que SÍ existen en pedido_items
+        $pedido->items()->create([
+            'producto_id'     => $prodId,
+            'cantidad'        => $qty,
+            'precio_unitario' => $precio,
+            'subtotal'        => $precio * $qty,
+        ]);
+    }
+}
 
             return $pedido;
         });
@@ -216,10 +229,10 @@ class CheckoutController extends Controller
             // Silenciar para no romper el flujo del cliente si falla la notificación
         }
 
-        // 6) Limpiar carrito
+        // 6) Limpiar carrito (el resumen ya quedó en sesión flash aparte)
         session()->forget(['cart.items', 'cart', 'carrito', 'cart_items']);
 
-        // 7) Redirigir a confirmación (solo cambio necesario)
+        // 7) Redirigir a confirmación
         return redirect()
             ->route('cliente.checkout.confirmacion', $pedido->id)
             ->with('success', '¡Pedido creado correctamente!');
@@ -236,6 +249,26 @@ class CheckoutController extends Controller
             ->where('id_cliente', $user->id)
             ->firstOrFail();
 
+        // 1) Intentar usar los items desde la relación
+        $items = collect();
+
+        if ($p->relationLoaded('items') && $p->items->count()) {
+            $items = $p->items->map(function ($it) {
+                $precio = (float)($it->precio ?? 0);
+                $cant   = (int)($it->cantidad ?? 0);
+
+                return [
+                    'nombre'   => $it->nombre ?? '',
+                    'precio'   => $precio,
+                    'cantidad' => $cant,
+                    'subtotal' => (float)($it->subtotal ?? ($precio * $cant)),
+                ];
+            });
+        } else {
+            // 2) Si no hay items en BD, usar el resumen guardado en sesión (fallback)
+            $items = collect(session('pedido_resumen_items', []));
+        }
+
         $payload = [
             'id'           => $p->id,
             'folio'        => $p->folio,
@@ -251,14 +284,7 @@ class CheckoutController extends Controller
                 'cp'      => $p->direccion->cp,
                 'ciudad'  => $p->direccion->ciudad,
             ] : null,
-            'items' => $p->relationLoaded('items')
-                ? $p->items->map(fn($it) => [
-                    'nombre'   => $it->nombre ?? '',
-                    'precio'   => (float)($it->precio ?? 0),
-                    'cantidad' => (int)($it->cantidad ?? 0),
-                    'subtotal' => (float)($it->subtotal ?? (($it->precio ?? 0) * ($it->cantidad ?? 0))),
-                ])
-                : [],
+            'items' => $items->values()->all(),
         ];
 
         return Inertia::render('Cliente/Checkout/Confirmacion', [

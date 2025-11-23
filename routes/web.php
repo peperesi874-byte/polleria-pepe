@@ -39,6 +39,8 @@ use App\Http\Controllers\ClientePerfilController;
 use App\Http\Controllers\Cliente\CheckoutController; 
 use App\Http\Controllers\HomeRedirectController;
 
+
+
 // Perfil (Auth Breeze)
 use App\Http\Controllers\ProfileController;
 
@@ -389,4 +391,24 @@ Route::prefix('cliente')
         // Ticket del pedido desde el panel del cliente (mismo ticket del vendedor)
         Route::get('/pedidos/{pedido}/ticket', [VendedorPedidoTicketController::class, 'show'])
             ->name('pedidos.ticket');
+
+                  // 🔔 Notificaciones del cliente
+        Route::get('/notificaciones', [\App\Http\Controllers\Cliente\NotificacionesController::class, 'index'])
+            ->name('notificaciones.index');
+
+              // 🔘 Marcar UNA notificación como leída
+         Route::post(
+              '/notificaciones/{id}/leer',
+              [\App\Http\Controllers\Cliente\NotificacionesController::class, 'markAsRead']
+              )->name('notificaciones.leer');
+
+
+        // 🔘 (Opcional) Marcar TODAS como leídas
+        Route::post(
+            '/notificaciones/leer-todas',
+            [\App\Http\Controllers\Cliente\NotificacionesController::class, 'markAllAsRead']
+        )->name('notificaciones.leer_todas');
+
+
+
     });

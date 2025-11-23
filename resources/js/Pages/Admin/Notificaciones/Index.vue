@@ -4,8 +4,15 @@ import { Head, Link, router } from '@inertiajs/vue3'
 import { ref, watch, computed } from 'vue'
 
 const props = defineProps({
-  notificaciones: Object, // paginator { data, links, ... }
-  filters: Object
+  // puede venir como paginator { data, links } o incluso como array plano
+  notificaciones: {
+    type: [Object, Array],
+    default: () => ({}),
+  },
+  filters: {
+    type: Object,
+    default: () => ({}),
+  },
 })
 
 /* --------- Helpers de botón --------- */
@@ -14,7 +21,7 @@ const btn = (variant = 'outline') =>
     'inline-flex items-center gap-2 rounded-xl px-3 py-2 text-sm transition focus:outline-none focus:ring-2 focus:ring-indigo-300',
     variant === 'solid'
       ? 'bg-indigo-600 text-white hover:bg-indigo-700'
-      : 'border border-gray-300 text-gray-700 hover:bg-gray-50'
+      : 'border border-gray-300 text-gray-700 hover:bg-gray-50',
   ].join(' ')
 
 /* --------- Buscador (debounce) --------- */
@@ -26,14 +33,32 @@ watch(q, () => {
     router.get(
       route('admin.notificaciones.index'),
       { q: q.value },
-      { preserveState: true, replace: true }
+      { preserveState: true, replace: true },
     )
   }, 350)
 })
 
 /* --------- Lista / Paginación --------- */
-const items = computed(() => props.notificaciones?.data ?? [])
-const links = computed(() => props.notificaciones?.links ?? [])
+const items = computed(() => {
+  const n = props.notificaciones
+
+  // Si te llega como array plano
+  if (Array.isArray(n)) {
+    return n
+  }
+
+  // Si llega como paginator { data, links, ... }
+  if (n && Array.isArray(n.data)) {
+    return n.data
+  }
+
+  return []
+})
+
+const links = computed(() => {
+  const n = props.notificaciones
+  return n && Array.isArray(n.links) ? n.links : []
+})
 
 /* --------- Acciones: leer --------- */
 function marcarLeida(id) {
@@ -63,8 +88,8 @@ function eliminarTodas() {
 function tipoPill(tipo) {
   const t = (tipo || '').toString().toLowerCase()
   if (t.includes('inventario')) return 'bg-indigo-50 text-indigo-700 ring-1 ring-indigo-200'
-  if (t.includes('pedido'))     return 'bg-amber-50 text-amber-700 ring-1 ring-amber-200'
-  if (t.includes('error'))      return 'bg-rose-50 text-rose-700 ring-1 ring-rose-200'
+  if (t.includes('pedido')) return 'bg-amber-50 text-amber-700 ring-1 ring-amber-200'
+  if (t.includes('error')) return 'bg-rose-50 text-rose-700 ring-1 ring-rose-200'
   return 'bg-gray-100 text-gray-700 ring-1 ring-gray-200'
 }
 </script>
@@ -79,7 +104,9 @@ function tipoPill(tipo) {
         class="flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-gradient-to-r from-indigo-50 to-white px-4 py-4 ring-1 ring-indigo-100/60"
       >
         <div class="flex items-center gap-3">
-          <span class="inline-grid h-9 w-9 place-items-center rounded-xl bg-indigo-100 text-indigo-700">🔔</span>
+          <span class="inline-grid h-9 w-9 place-items-center rounded-xl bg-indigo-100 text-indigo-700">
+            🔔
+          </span>
           <div>
             <h2 class="text-2xl font-semibold text-gray-800">Notificaciones</h2>
             <p class="mt-0.5 text-sm text-gray-500">Historial de avisos del sistema.</p>
@@ -91,7 +118,6 @@ function tipoPill(tipo) {
             Marcar todas como leídas
           </button>
 
-          <!-- 🔥 Botones nuevos -->
           <button type="button" :class="btn('outline')" @click="eliminarLeidas">
             Eliminar leídas
           </button>
@@ -117,7 +143,9 @@ function tipoPill(tipo) {
             placeholder="Buscar por título o mensaje…"
             class="w-full rounded-xl border border-gray-300/80 bg-white px-4 py-2.5 pr-10 text-sm shadow-sm outline-none ring-indigo-200 focus:border-indigo-300 focus:ring-2"
           />
-          <span class="pointer-events-none absolute inset-y-0 right-3 flex items-center text-gray-400">🔎</span>
+          <span class="pointer-events-none absolute inset-y-0 right-3 flex items-center text-gray-400">
+            🔎
+          </span>
         </div>
       </div>
 
@@ -141,9 +169,14 @@ function tipoPill(tipo) {
                 :key="n.id"
                 class="border-t border-gray-100 odd:bg-white even:bg-gray-50/30 hover:bg-gray-50/80"
               >
-                <td class="px-4 py-3 text-gray-500 whitespace-nowrap">{{ n.fecha }}</td>
+                <td class="px-4 py-3 text-gray-500 whitespace-nowrap">
+                  {{ n.fecha }}
+                </td>
 
-                <td class="px-4 py-3 font-medium text-gray-900 truncate max-w-[22ch]" :title="n.titulo">
+                <td
+                  class="px-4 py-3 font-medium text-gray-900 truncate max-w-[22ch]"
+                  :title="n.titulo"
+                >
                   {{ n.titulo }}
                 </td>
 
@@ -154,7 +187,10 @@ function tipoPill(tipo) {
                 </td>
 
                 <td class="px-4 py-3">
-                  <span class="rounded-full px-2.5 py-1 text-xs font-semibold" :class="tipoPill(n.tipo)">
+                  <span
+                    class="rounded-full px-2.5 py-1 text-xs font-semibold"
+                    :class="tipoPill(n.tipo)"
+                  >
                     {{ n.tipo ?? '—' }}
                   </span>
                 </td>
@@ -191,7 +227,7 @@ function tipoPill(tipo) {
       <!-- Paginación -->
       <div v-if="links.length" class="mt-4 flex justify-end gap-2">
         <Link
-          v-for="(l,i) in links"
+          v-for="(l, i) in links"
           :key="i"
           :href="l.url || '#'"
           v-html="l.label"

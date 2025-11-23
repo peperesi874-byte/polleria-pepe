@@ -9,6 +9,9 @@ const page = usePage()
 const userName = computed(() => page.props?.auth?.user?.name ?? 'Usuario')
 const roleId   = computed(() => Number(page.props?.auth?.user?.role_id ?? 0))
 
+/* 👇 NUEVO: saber si es cliente (role_id = 4) */
+const isCliente = computed(() => roleId.value === 4)
+
 /* Helper seguro para rutas (NO TRUENA si Ziggy no la reconoce) */
 const safeRoute = (name, params = {}) => {
   try {
@@ -101,7 +104,11 @@ const homeRoute = computed(() => {
 <template>
   <div class="min-h-screen bg-gray-50">
     <!-- 🔷 TOPBAR STICKY -->
-    <nav class="bg-white border-b border-gray-200 sticky top-0 z-40">
+    <!-- 👇 SOLO se muestra si NO es cliente -->
+    <nav
+      v-if="!isCliente"
+      class="bg-white border-b border-gray-200 sticky top-0 z-40"
+    >
       <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         <div class="flex h-16 items-center justify-between">
           <!-- IZQUIERDA: LOGO + MENÚ -->
