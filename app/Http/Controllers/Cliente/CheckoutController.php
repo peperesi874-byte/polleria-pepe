@@ -12,6 +12,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 use Inertia\Inertia;
+use App\Services\ConfiguracionService; // 👈 NUEVO
 
 class CheckoutController extends Controller
 {
@@ -64,6 +65,15 @@ class CheckoutController extends Controller
     public function store(Request $request)
     {
         $user = $request->user();
+
+        // ⛔ SOLO CLIENTE: bloquear si la tienda está cerrada
+        if (!ConfiguracionService::isOpenNow()) {
+            return back()
+                ->withErrors([
+                    'horario' => 'La tienda está cerrada en este horario. No es posible registrar pedidos en este momento.',
+                ])
+                ->withInput();
+        }
 
         // 1) Validación
         $data = $request->validate([
@@ -145,7 +155,7 @@ class CheckoutController extends Controller
             $total += $precio * $qty;
         }
 
-        // 🔹 También generamos un resumen normalizado de items para la confirmación
+        // 🔹 También generamos un resumen normalizado de items para la confirmación (fallback)
         $itemsResumen = collect($items)->map(function ($it) {
             $precio = (float) ($it['precio'] ?? $it['price'] ?? 0);
             $qty    = (int)   ($it['cantidad'] ?? $it['qty'] ?? 0);
@@ -175,26 +185,25 @@ class CheckoutController extends Controller
             ]);
 
             // Crear items si el modelo existe y la relación está definida
-           // Crear items si el modelo existe y la relación está definida
-if (class_exists(PedidoItem::class) && method_exists($pedido, 'items')) {
-    foreach ($items as $it) {
-        $precio = (float) ($it['precio'] ?? $it['price'] ?? 0);
-        $qty    = (int)   ($it['cantidad'] ?? $it['qty'] ?? 0);
-        $prodId = $it['id'] ?? $it['producto_id'] ?? null;
+            if (class_exists(PedidoItem::class) && method_exists($pedido, 'items')) {
+                foreach ($items as $it) {
+                    $precio = (float) ($it['precio'] ?? $it['price'] ?? 0);
+                    $qty    = (int)   ($it['cantidad'] ?? $it['qty'] ?? 0);
+                    $prodId = $it['id'] ?? $it['producto_id'] ?? null;
 
-        if ($qty <= 0 || $precio < 0 || !$prodId) {
-            continue;
-        }
+                    if ($qty <= 0 || $precio < 0 || !$prodId) {
+                        continue;
+                    }
 
-        // 👇 columnas que SÍ existen en pedido_items
-        $pedido->items()->create([
-            'producto_id'     => $prodId,
-            'cantidad'        => $qty,
-            'precio_unitario' => $precio,
-            'subtotal'        => $precio * $qty,
-        ]);
-    }
-}
+                    // 👇 columnas que SÍ existen en pedido_items
+                    $pedido->items()->create([
+                        'producto_id'     => $prodId,
+                        'cantidad'        => $qty,
+                        'precio_unitario' => $precio,
+                        'subtotal'        => $precio * $qty,
+                    ]);
+                }
+            }
 
             return $pedido;
         });
@@ -244,7 +253,7 @@ if (class_exists(PedidoItem::class) && method_exists($pedido, 'items')) {
         $user = $request->user();
 
         $p = Pedido::query()
-            ->with(['items', 'direccion'])
+            ->with(['items.producto', 'direccion']) // 👈 incluye producto para obtener el nombre
             ->where('id', $pedido)
             ->where('id_cliente', $user->id)
             ->firstOrFail();
@@ -254,20 +263,19 @@ if (class_exists(PedidoItem::class) && method_exists($pedido, 'items')) {
 
         if ($p->relationLoaded('items') && $p->items->count()) {
             $items = $p->items->map(function ($it) {
-                $precio = (float)($it->precio ?? 0);
-                $cant   = (int)($it->cantidad ?? 0);
-
                 return [
-                    'nombre'   => $it->nombre ?? '',
-                    'precio'   => $precio,
-                    'cantidad' => $cant,
-                    'subtotal' => (float)($it->subtotal ?? ($precio * $cant)),
+                    'nombre'   => $it->producto->nombre ?? 'Producto',
+                    'precio'   => (float) $it->precio_unitario,
+                    'cantidad' => (int)   $it->cantidad,
+                    'subtotal' => (float) $it->subtotal,
                 ];
             });
         } else {
             // 2) Si no hay items en BD, usar el resumen guardado en sesión (fallback)
             $items = collect(session('pedido_resumen_items', []));
         }
+
+        $itemsArray = $items->values()->all();
 
         $payload = [
             'id'           => $p->id,
@@ -284,11 +292,14 @@ if (class_exists(PedidoItem::class) && method_exists($pedido, 'items')) {
                 'cp'      => $p->direccion->cp,
                 'ciudad'  => $p->direccion->ciudad,
             ] : null,
-            'items' => $items->values()->all(),
+            'items' => $itemsArray,
         ];
 
         return Inertia::render('Cliente/Checkout/Confirmacion', [
-            'pedido' => $payload,
+            'pedido'    => $payload,
+            // para que tu Confirmacion.vue funcione tal como está:
+            'items'     => $itemsArray,
+            'direccion' => $payload['direccion'],
         ]);
     }
 

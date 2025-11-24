@@ -13,6 +13,28 @@ const saludo = computed(() => {
   return 'Buenas noches'
 })
 
+/* 🌍 Configuración global del sistema */
+const cfg = computed(() => page.props?.config_global ?? null)
+
+const horarioTexto = computed(() => {
+  if (!cfg.value) return ''
+  const a = (cfg.value.horario_apertura || '').slice(0, 5)
+  const c = (cfg.value.horario_cierre   || '').slice(0, 5)
+  return `${a}–${c} hrs`
+})
+
+const estadoTienda = computed(() => {
+  if (!cfg.value) return ''
+  return cfg.value.is_open_now ? 'Abierto' : 'Cerrado'
+})
+
+const estadoClase = computed(() => {
+  if (!cfg.value) return ''
+  return cfg.value.is_open_now
+    ? 'bg-emerald-100 text-emerald-700 ring-emerald-200'
+    : 'bg-rose-100 text-rose-700 ring-rose-200'
+})
+
 /* 🔔 Notificaciones del cliente para la campanita (vienen de notifications_cliente en HandleInertiaRequests) */
 const notificationsRaw = computed(() => page.props?.notifications_cliente ?? null)
 
@@ -65,7 +87,7 @@ const formatDate = (value) => {
   <header class="flex flex-col gap-6">
     <!-- Parte de arriba -->
     <div
-      class="flex items-center justify-between gap-4 rounded-2xl bg-white/80 backdrop-blur-md shadow-md px-6 py-4 border border-neutral-200"
+      class="relative z-20 flex items-center justify-between gap-4 rounded-2xl bg-white/80 backdrop-blur-md shadow-md px-6 py-4 border border-neutral-200"
     >
       <div>
         <p class="text-xs font-semibold tracking-[0.2em] text-amber-600 uppercase">
@@ -81,17 +103,33 @@ const formatDate = (value) => {
           Gestiona tu compra, pedidos y datos desde aquí.
         </p>
 
-        <!-- DEBUG: BORRAR LUEGO -->
-<p class="text-[10px] text-slate-400">
-  notifications_cliente: {{ $page.props.notifications_cliente ? 'OK' : 'null' }}
-</p>
+        <!-- 🌍 Estado de la tienda (Abierto / Cerrado) -->
+        <div v-if="cfg" class="mt-3 flex items-center gap-2 text-xs text-slate-500">
+          <span>Horario:</span>
+          <span class="font-medium text-slate-700">{{ horarioTexto }}</span>
 
+          <span
+            class="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold ring-1"
+            :class="estadoClase"
+          >
+            <span
+              class="h-1.5 w-1.5 rounded-full"
+              :class="cfg.is_open_now ? 'bg-emerald-500' : 'bg-rose-500'"
+            />
+            {{ estadoTienda }}
+          </span>
+        </div>
+
+        <!-- DEBUG: BORRAR LUEGO -->
+        <p class="text-[10px] text-slate-400">
+          notifications_cliente: {{ $page.props.notifications_cliente ? 'OK' : 'null' }}
+        </p>
       </div>
 
       <!-- 🔥 Campanita + Cerrar Sesión -->
       <div class="flex items-center gap-3">
         <!-- 🔔 Campanita notificaciones -->
-           <div class="relative">
+        <div class="relative">
           <button
             id="cliente-notifications-button"
             type="button"
@@ -187,65 +225,65 @@ const formatDate = (value) => {
 
     <!-- Tabs -->
     <nav class="w-full text-sm">
-  <div class="grid grid-cols-6 gap-3 w-full">
-    <!-- Inicio -->
-    <Link
-      :href="route('cliente.inicio')"
-      class="tab-led group inline-flex items-center gap-2 px-4 py-2 rounded-full border border-slate-300 bg-white text-sm font-medium text-slate-700 shadow-sm hover:bg-amber-50 hover:border-amber-300 active:scale-95 transition whitespace-nowrap"
-      :class="{ 'bg-amber-500 border-amber-500 text-white shadow-md': route().current('cliente.inicio') }"
-    >
-      🏠 Inicio
-    </Link>
+      <div class="grid grid-cols-6 gap-3 w-full">
+        <!-- Inicio -->
+        <Link
+          :href="route('cliente.inicio')"
+          class="tab-led group inline-flex items-center gap-2 px-4 py-2 rounded-full border border-slate-300 bg-white text-sm font-medium text-slate-700 shadow-sm hover:bg-amber-50 hover:border-amber-300 active:scale-95 transition whitespace-nowrap"
+          :class="{ 'bg-amber-50 border-amber-300 text-amber-700 shadow-md': route().current('cliente.inicio') }"
+        >
+          🏠 Inicio
+        </Link>
 
-    <Link
-      :href="route('catalogo.index')"
-      class="tab-led group inline-flex items-center gap-2 px-4 py-2 rounded-full border border-neutral-300 bg-white text-neutral-700 font-medium shadow-sm hover:bg-amber-50 hover:border-amber-300 active:scale-95 transition whitespace-nowrap"
-    >
-      <span>🛍️</span>
-      <span>Catálogo</span>
-    </Link>
+        <Link
+          :href="route('catalogo.index')"
+          class="tab-led group inline-flex items-center gap-2 px-4 py-2 rounded-full border border-neutral-300 bg-white text-neutral-700 font-medium shadow-sm hover:bg-amber-50 hover:border-amber-300 active:scale-95 transition whitespace-nowrap"
+        >
+          <span>🛍️</span>
+          <span>Catálogo</span>
+        </Link>
 
-    <Link
-      :href="route('cliente.pedidos.index')"
-      class="tab-led group inline-flex items-center gap-2 px-4 py-2 rounded-full border border-neutral-300 bg-white text-neutral-700 font-medium shadow-sm hover:bg-amber-50 hover:border-amber-300 active:scale-95 transition whitespace-nowrap"
-    >
-      <span>📦</span>
-      <span>Mis pedidos</span>
-    </Link>
+        <Link
+          :href="route('cliente.pedidos.index')"
+          class="tab-led group inline-flex items-center gap-2 px-4 py-2 rounded-full border border-neutral-300 bg-white text-neutral-700 font-medium shadow-sm hover:bg-amber-50 hover:border-amber-300 active:scale-95 transition whitespace-nowrap"
+        >
+          <span>📦</span>
+          <span>Mis pedidos</span>
+        </Link>
 
-    <Link
-      :href="route('cliente.perfil.edit')"
-      class="tab-led group inline-flex items-center gap-2 px-4 py-2 rounded-full border border-neutral-300 bg-white text-neutral-700 font-medium shadow-sm hover:bg-amber-50 hover:border-amber-300 active:scale-95 transition whitespace-nowrap"
-    >
-      <span>👤</span>
-      <span>Mis datos</span>
-    </Link>
+        <Link
+          :href="route('cliente.perfil.edit')"
+          class="tab-led group inline-flex items-center gap-2 px-4 py-2 rounded-full border border-neutral-300 bg-white text-neutral-700 font-medium shadow-sm hover:bg-amber-50 hover:border-amber-300 active:scale-95 transition whitespace-nowrap"
+        >
+          <span>👤</span>
+          <span>Mis datos</span>
+        </Link>
 
-    <Link
-      :href="route('cliente.carrito.index')"
-      class="tab-led group inline-flex items-center gap-2 px-4 py-2 rounded-full border border-neutral-300 bg-white text-neutral-700 font-medium shadow-sm hover:bg-amber-50 hover:border-amber-300 active:scale-95 transition whitespace-nowrap"
-    >
-      <span>🧺</span>
-      <span>Carrito</span>
-    </Link>
+        <Link
+          :href="route('cliente.carrito.index')"
+          class="tab-led group inline-flex items-center gap-2 px-4 py-2 rounded-full border border-neutral-300 bg-white text-neutral-700 font-medium shadow-sm hover:bg-amber-50 hover:border-amber-300 active:scale-95 transition whitespace-nowrap"
+        >
+          <span>🧺</span>
+          <span>Carrito</span>
+        </Link>
 
-    <Link
-      :href="route('cliente.notificaciones.index')"
-      class="tab-led group inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-medium border
+        <Link
+          :href="route('cliente.notificaciones.index')"
+          class="tab-led group inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-medium border
                 bg-white border-slate-200 text-slate-700 hover:bg-slate-50 whitespace-nowrap"
-      :class="{
-        'bg-amber-50 border-amber-300 text-amber-700':
-          $page.component === 'Cliente/Notificaciones/Index',
-      }"
-    >
-      <span>🔔</span>
-      <span>Notificaciones</span>
-    </Link>
-  </div>
-</nav>
-
+          :class="{
+            'bg-amber-50 border-amber-300 text-amber-700':
+              $page.component === 'Cliente/Notificaciones/Index',
+          }"
+        >
+          <span>🔔</span>
+          <span>Notificaciones</span>
+        </Link>
+      </div>
+    </nav>
   </header>
 </template>
+
 <style scoped>
 .tab-led {
   position: relative;
@@ -284,5 +322,3 @@ const formatDate = (value) => {
   }
 }
 </style>
-
-

@@ -216,6 +216,36 @@ const actionLabel = (a = '') => (a || '').replaceAll('_',' ').toUpperCase()
         </div>
       </div>
 
+      <!-- 🔹 DATOS DEL CLIENTE (para todos los pedidos con cliente ligado) -->
+      <div
+        v-if="pedido?.cliente"
+        class="rounded-2xl border bg-white p-5 shadow-sm"
+      >
+        <h3 class="mb-3 text-lg font-semibold text-gray-900">Datos del cliente</h3>
+
+        <div class="grid gap-6 sm:grid-cols-3 text-sm">
+          <div>
+            <p class="text-xs text-gray-500">Nombre</p>
+            <p class="mt-1 text-gray-900 font-semibold">
+              {{ pedido.cliente.nombre || '—' }}
+            </p>
+          </div>
+          <div v-if="pedido.cliente.telefono">
+            <p class="text-xs text-gray-500">Teléfono</p>
+            <p class="mt-1 text-gray-900">
+              {{ pedido.cliente.telefono }}
+            </p>
+          </div>
+          <div v-if="pedido.cliente.email">
+            <p class="text-xs text-gray-500">Correo electrónico</p>
+            <p class="mt-1 text-gray-900">
+              {{ pedido.cliente.email }}
+            </p>
+          </div>
+        </div>
+      </div>
+      <!-- /DATOS DEL CLIENTE -->
+
       <!-- ENVÍO A DOMICILIO -->
       <div v-if="pedido?.tipo === 'domicilio'" class="rounded-2xl border bg-white p-5 shadow-sm">
         <h3 class="mb-3 text-lg font-semibold text-gray-900">Datos de envío a domicilio</h3>

@@ -10,6 +10,7 @@ use Illuminate\Support\Facades\Response;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 use Inertia\Inertia;                           // 👈 necesario para la vista
 use Inertia\Response as InertiaResponse;       // 👈 tipado opcional
+use Barryvdh\DomPDF\Facade\Pdf;               // 👈 NUEVO para PDFs
 
 class ReportesController extends Controller
 {
@@ -348,5 +349,92 @@ class ReportesController extends Controller
             }
             fclose($out);
         }, 200, $headers);
+    }
+
+    // ------------------------------------------------------------------
+    // 🔴 NUEVO: PDF de ingresos
+    // ------------------------------------------------------------------
+    public function exportIngresosPdf(Request $request)
+    {
+        $desde = (string) $request->get('desde', now()->subDays(30)->toDateString());
+        $hasta = (string) $request->get('hasta', now()->toDateString());
+
+        $base = DB::table('pedidos')
+            ->where('estado', 'entregado')
+            ->when($desde !== '', fn ($w) => $w->whereDate('created_at', '>=', $desde))
+            ->when($hasta !== '', fn ($w) => $w->whereDate('created_at', '<=', $hasta));
+
+        $series = (clone $base)
+            ->selectRaw('DATE(created_at) as fecha, COUNT(*) as pedidos, SUM(total) as ingresos')
+            ->groupBy(DB::raw('DATE(created_at)'))
+            ->orderBy('fecha')
+            ->get();
+
+        $ingresosTotal   = (float) ($series->sum('ingresos') ?? 0);
+        $pedidosTotal    = (int)   ($series->sum('pedidos')  ?? 0);
+        $promedioTicket  = $pedidosTotal > 0 ? $ingresosTotal / $pedidosTotal : 0;
+
+        $porTipo = (clone $base)
+            ->selectRaw("tipo_entrega, COUNT(*) as pedidos, SUM(total) as ingresos")
+            ->groupBy('tipo_entrega')
+            ->get()
+            ->keyBy('tipo_entrega');
+
+        $mostrador = $porTipo->get('mostrador');
+        $domicilio = $porTipo->get('domicilio');
+
+        BitacoraService::add('reportes', 'exportar_pdf', null, [
+            'reporte' => 'ingresos',
+            'desde'   => $desde,
+            'hasta'   => $hasta,
+        ]);
+
+        $pdf = Pdf::loadView('reportes.ingresos_pdf', [
+            'desde'   => $desde,
+            'hasta'   => $hasta,
+            'series'  => $series,
+            'resumen' => [
+                'ingresos_total'  => $ingresosTotal,
+                'pedidos'         => $pedidosTotal,
+                'promedio_ticket' => $promedioTicket,
+                'mostrador' => [
+                    'pedidos'  => (int)   ($mostrador->pedidos  ?? 0),
+                    'ingresos' => (float) ($mostrador->ingresos ?? 0),
+                ],
+                'domicilio' => [
+                    'pedidos'  => (int)   ($domicilio->pedidos  ?? 0),
+                    'ingresos' => (float) ($domicilio->ingresos ?? 0),
+                ],
+            ],
+            'generadoEn' => now(),
+        ])->setPaper('letter', 'portrait');
+
+        $filename = 'reporte_ingresos_' . now()->format('Ymd_His') . '.pdf';
+
+        return $pdf->stream($filename);
+    }
+
+    // ------------------------------------------------------------------
+    // 🔴 NUEVO: PDF de catálogo de productos
+    // ------------------------------------------------------------------
+    public function exportProductosPdf()
+    {
+        $rows = DB::table('productos')
+            ->select('id', 'nombre', 'precio', 'stock', 'activo')
+            ->orderBy('nombre')
+            ->get();
+
+        BitacoraService::add('reportes', 'exportar_pdf', null, [
+            'reporte' => 'catalogo_productos',
+        ]);
+
+        $pdf = Pdf::loadView('reportes.productos_pdf', [
+            'productos'  => $rows,
+            'generadoEn' => now(),
+        ])->setPaper('letter', 'portrait');
+
+        $filename = 'catalogo_productos_' . now()->format('Ymd_His') . '.pdf';
+
+       return $pdf->stream($filename);
     }
 }

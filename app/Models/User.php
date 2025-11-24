@@ -9,6 +9,9 @@ use Illuminate\Notifications\Notifiable;
 use Laravel\Sanctum\HasApiTokens;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
+// 👇 IMPORTANTE: importa tu notificación personalizada
+use App\Notifications\PasswordResetNotification;
+
 class User extends Authenticatable
 {
     use HasApiTokens, HasFactory, Notifiable;
@@ -53,5 +56,13 @@ class User extends Authenticatable
     public function role(): BelongsTo
     {
         return $this->belongsTo(\App\Models\Role::class);
+    }
+
+    /**
+     * 🚀 Notificación de restablecimiento de contraseña en ESPAÑOL
+     */
+    public function sendPasswordResetNotification($token)
+    {
+        $this->notify(new PasswordResetNotification($token));
     }
 }

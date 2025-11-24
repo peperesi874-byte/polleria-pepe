@@ -119,17 +119,34 @@ const enviar = () => {
     </header>
 
     <main class="max-w-5xl mx-auto p-6 space-y-6">
+      <!-- ⛔ Mensaje cuando la tienda está cerrada -->
+      <div
+        v-if="$page.props.errors?.horario"
+        class="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700"
+      >
+        {{ $page.props.errors.horario }}
+      </div>
+
       <!-- Datos del cliente -->
       <section class="rounded-xl border bg-white p-4">
         <h2 class="font-medium mb-2">Datos del cliente</h2>
         <div class="grid sm:grid-cols-3 gap-3 text-sm">
-          <div><span class="text-neutral-500">Nombre:</span> <strong>{{ user.name }} {{ user.apellido ?? '' }}</strong></div>
-          <div><span class="text-neutral-500">Email:</span> <strong>{{ user.email }}</strong></div>
-          <div><span class="text-neutral-500">Teléfono:</span> <strong>{{ user.telefono ?? '—' }}</strong></div>
+          <div>
+            <span class="text-neutral-500">Nombre:</span>
+            <strong>{{ user.name }} {{ user.apellido ?? '' }}</strong>
+          </div>
+          <div>
+            <span class="text-neutral-500">Email:</span>
+            <strong>{{ user.email }}</strong>
+          </div>
+          <div>
+            <span class="text-neutral-500">Teléfono:</span>
+            <strong>{{ user.telefono ?? '—' }}</strong>
+          </div>
         </div>
       </section>
 
-      <!-- Resumen del pedido (versión profesional con degradado cálido) -->
+      <!-- Resumen del pedido -->
       <section
         class="relative rounded-2xl p-5 overflow-hidden text-neutral-800"
         style="
@@ -205,8 +222,11 @@ const enviar = () => {
             </select>
           </div>
 
-          <!-- 👇 NUEVO: Bloque para mostrar y usar la dirección del perfil -->
-          <div v-if="props.direccionPerfil" class="rounded border p-3 bg-neutral-50 text-neutral-700 text-sm flex items-start justify-between gap-3">
+          <!-- Dirección de perfil -->
+          <div
+            v-if="props.direccionPerfil"
+            class="rounded border p-3 bg-neutral-50 text-neutral-700 text-sm flex items-start justify-between gap-3"
+          >
             <div>
               <div class="font-medium">Dirección de tu perfil</div>
               <div class="mt-1">{{ props.direccionPerfil }}</div>
@@ -234,7 +254,7 @@ const enviar = () => {
               </label>
             </div>
 
-            <!-- Si usa guardada -->
+            <!-- Usa guardada -->
             <div v-if="!usarNueva">
               <label class="block text-sm font-medium mb-1">Dirección</label>
               <select
@@ -252,7 +272,7 @@ const enviar = () => {
               </p>
             </div>
 
-            <!-- Si agrega nueva -->
+            <!-- Agrega nueva -->
             <div v-else class="grid sm:grid-cols-2 gap-3">
               <div class="sm:col-span-2 text-sm text-neutral-600">
                 Captura una nueva dirección:

@@ -121,42 +121,57 @@ class HandleInertiaRequests extends Middleware
             },
 
             // 🔔 Notificaciones específicas para el PANEL DEL CLIENTE (campanita arriba)
-'notifications_cliente' => function () use ($request) {
-    $u = $request->user();
+            'notifications_cliente' => function () use ($request) {
+                $u = $request->user();
 
-    // Si no hay usuario logueado, no mandamos nada
-    if (!$u) {
-        return null;
-    }
+                // Si no hay usuario logueado, no mandamos nada
+                if (!$u) {
+                    return null;
+                }
 
-    // 👇 Aquí NO filtramos por rol para no fallar si algo cambia.
-    // Asumimos que las notificaciones del cliente se ligan por user_id,
-    // igual que en tu pantalla de Cliente/Notificaciones.
-    $baseQuery = Notificacion::query()
-        ->where('user_id', $u->id)
-        ->orderByDesc('created_at');
+                // 👇 Ligadas por user_id, igual que en Cliente/Notificaciones
+                $baseQuery = Notificacion::query()
+                    ->where('user_id', $u->id)
+                    ->orderByDesc('created_at');
 
-    // Últimas 5 notificaciones para el dropdown
-    $items = (clone $baseQuery)
-        ->limit(5)
-        ->get([
-            'id',
-            'titulo',
-            'mensaje',
-            'leida',
-            'created_at',
-        ]);
+                // Últimas 5 notificaciones para el dropdown
+                $items = (clone $baseQuery)
+                    ->limit(5)
+                    ->get([
+                        'id',
+                        'titulo',
+                        'mensaje',
+                        'leida',
+                        'created_at',
+                    ]);
 
-    // Conteo de no leídas (usamos 0/1 explícito)
-    $unread = (clone $baseQuery)
-        ->where('leida', 0)
-        ->count();
+                // Conteo de no leídas
+                $unread = (clone $baseQuery)
+                    ->where('leida', 0)
+                    ->count();
 
-    return [
-        'items'  => $items,
-        'unread' => $unread,
-    ];
-},
+                return [
+                    'items'  => $items,
+                    'unread' => $unread,
+                ];
+            },
+
+            // 🌍 CONFIGURACIÓN GLOBAL DEL SISTEMA (horarios, zona de cobertura, umbral stock)
+            'config_global' => function () {
+                $cfg = \App\Services\ConfiguracionService::get();
+
+                if (!$cfg) {
+                    return null;
+                }
+
+                return [
+                    'horario_apertura'  => $cfg->horario_apertura,
+                    'horario_cierre'    => $cfg->horario_cierre,
+                    'zona_cobertura'    => $cfg->zona_cobertura,
+                    'umbral_stock_bajo' => $cfg->umbral_stock_bajo,
+                    'is_open_now'       => \App\Services\ConfiguracionService::isOpenNow(),
+                ];
+            },
 
         ]);
     }

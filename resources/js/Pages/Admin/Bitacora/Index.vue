@@ -40,13 +40,23 @@ watch([modulo, q, user_id], () => {
   }, 300)
 })
 
-/** Limpiar */
+/** Limpiar filtros */
 const clearFilters = () => {
   modulo.value = ''
   q.value = ''
   user_id.value = ''
   router.get(route('admin.bitacora.index'), {}, { preserveState: false, replace: true })
 }
+
+/** 🗑️ Limpiar toda la bitácora */
+const limpiarBitacora = () => {
+  if (confirm('¿Seguro que deseas eliminar TODOS los registros de la bitácora? Esta acción no se puede deshacer.')) {
+    router.delete('/admin/bitacora/limpiar', {   // 👈 URL directa, sin Ziggy
+      preserveScroll: true,
+    })
+  }
+}
+
 </script>
 
 <template>
@@ -63,6 +73,15 @@ const clearFilters = () => {
           title="Limpiar filtros"
         >
           🧹 Limpiar
+        </button>
+        <!-- 🗑️ NUEVO: botón para limpiar toda la bitácora -->
+        <button
+          type="button"
+          @click="limpiarBitacora"
+          class="inline-flex items-center gap-2 rounded-xl border px-3 py-2 text-sm bg-rose-600 text-white hover:bg-rose-700 active:scale-95 ml-2"
+          title="Eliminar todos los registros de la bitácora"
+        >
+          🗑️ Limpiar bitácora
         </button>
       </div>
     </template>

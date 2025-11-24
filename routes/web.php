@@ -7,6 +7,10 @@ use Inertia\Inertia;
 use App\Http\Controllers\CatalogoController;
 use App\Http\Controllers\ProductoController;
 
+// 🔐 Recuperación por código (solo agregado)
+use App\Http\Controllers\Auth\PasswordOtpController;
+
+
 // Admin
 use App\Http\Controllers\Admin\AdminDashboardController;
 use App\Http\Controllers\Admin\UserController;
@@ -96,6 +100,38 @@ require __DIR__ . '/auth.php';
 
 /*
 |--------------------------------------------------------------------------
+| 🔐 RUTAS RECUPERACIÓN POR CÓDIGO (GUEST) – SOLO AGREGADO
+|--------------------------------------------------------------------------
+*/
+
+// Formularios
+Route::get('/forgot-password-otp', [PasswordOtpController::class, 'showRequestForm'])
+    ->middleware('guest')
+    ->name('password.otp.request.form');
+
+Route::get('/verify-otp', [PasswordOtpController::class, 'showVerifyForm'])
+    ->middleware('guest')
+    ->name('password.otp.verify.form');
+
+Route::get('/reset-password-otp', [PasswordOtpController::class, 'showResetForm'])
+    ->middleware('guest')
+    ->name('password.otp.reset.form');
+
+// Acciones
+Route::post('/forgot-password-otp/send', [PasswordOtpController::class, 'sendCode'])
+    ->middleware('guest')
+    ->name('password.otp.send');
+
+Route::post('/verify-otp', [PasswordOtpController::class, 'verifyCode'])
+    ->middleware('guest')
+    ->name('password.otp.verify');
+
+Route::post('/reset-password-otp', [PasswordOtpController::class, 'resetPassword'])
+    ->middleware('guest')
+    ->name('password.otp.reset');
+
+/*
+|--------------------------------------------------------------------------
 | REDIRECCIÓN POR ROL
 |--------------------------------------------------------------------------
 */
@@ -155,18 +191,25 @@ Route::prefix('admin')
         });
 
         // Reporte: Ingresos de ventas (solo pedidos entregados)
-Route::get('/reportes/ingresos', [ReportesController::class, 'ingresos'])
-    ->name('reportes.ingresos');
+        Route::get('/reportes/ingresos', [ReportesController::class, 'ingresos'])
+            ->name('reportes.ingresos');
 
-Route::get('/reportes/ingresos/export/csv', [ReportesController::class, 'exportIngresosCsv'])
-    ->name('reportes.ingresos.csv');
+        Route::get('/reportes/ingresos/export/csv', [ReportesController::class, 'exportIngresosCsv'])
+            ->name('reportes.ingresos.csv');
 
+        // 🔴 NUEVO: PDF de ingresos
+        Route::get('/reportes/ingresos/export/pdf', [ReportesController::class, 'exportIngresosPdf'])
+            ->name('reportes.ingresos.pdf');
 
         /*
         | REPORTES (CATÁLOGO, ETC.)
         */
         Route::get('/reportes/productos/export/csv', [ReportesController::class, 'exportProductosCSV'])
             ->name('reportes.productos.csv');
+
+        // 🔴 NUEVO: PDF de catálogo de productos
+        Route::get('/reportes/productos/export/pdf', [ReportesController::class, 'exportProductosPdf'])
+            ->name('reportes.productos.pdf');
 
         /*
         | INVENTARIO
@@ -217,9 +260,17 @@ Route::get('/reportes/ingresos/export/csv', [ReportesController::class, 'exportI
         /*
         | BITÁCORA + NOTIFICACIONES
         */
+        // Bitácora del admin
         Route::get('/bitacora', [BitacoraController::class, 'index'])
             ->name('bitacora.index');
 
+        Route::delete('/bitacora/limpiar', function () {
+            \DB::table('bitacora_logs')->truncate();
+            return back()->with('success', 'La bitácora ha sido limpiada correctamente.');
+        })->name('bitacora.limpiar');
+
+
+        // Notificaciones del admin
         Route::get('/notificaciones', [NotificacionesController::class, 'index'])
             ->name('notificaciones.index');
 
@@ -234,7 +285,9 @@ Route::get('/reportes/ingresos/export/csv', [ReportesController::class, 'exportI
 
         Route::delete('/notificaciones', [NotificacionesController::class, 'deleteAll'])
             ->name('notificaciones.delete_all');
+
     });
+
 
 /*
 |--------------------------------------------------------------------------

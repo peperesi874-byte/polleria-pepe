@@ -26,20 +26,38 @@ class PedidoController extends Controller
         $q        = trim((string) $request->query('q', ''));
         $asignado = trim((string) $request->query('asignado', '')); // '', 'none', 'any'
 
+        // 🔹 NUEVOS filtros de fecha (YYYY-MM-DD)
+        $desde    = trim((string) $request->query('desde', ''));
+        $hasta    = trim((string) $request->query('hasta', ''));
+
         $query = Pedido::query()
             ->withCount('items')
             ->with(['repartidor:id,name']);
 
-        if ($estado !== '') $query->where('estado', $estado);
-        if ($asignado === 'none') $query->whereNull('asignado_a');
-        elseif ($asignado === 'any') $query->whereNotNull('asignado_a');
+        if ($estado !== '') {
+            $query->where('estado', $estado);
+        }
+
+        if ($asignado === 'none') {
+            $query->whereNull('asignado_a');
+        } elseif ($asignado === 'any') {
+            $query->whereNotNull('asignado_a');
+        }
 
         if ($q !== '') {
             $qLower = mb_strtolower($q, 'UTF-8');
             $query->where(function ($w) use ($qLower) {
                 $w->whereRaw('LOWER(folio) LIKE ?', ['%' . $qLower . '%'])
-                    ->orWhereRaw('LOWER(observaciones) LIKE ?', ['%' . $qLower . '%']);
+                  ->orWhereRaw('LOWER(observaciones) LIKE ?', ['%' . $qLower . '%']);
             });
+        }
+
+        // 🔹 APLICAR filtros de fecha sobre created_at
+        if ($desde !== '') {
+            $query->whereDate('created_at', '>=', $desde);
+        }
+        if ($hasta !== '') {
+            $query->whereDate('created_at', '<=', $hasta);
         }
 
         $pedidos = $query->orderByDesc('id')
@@ -64,10 +82,16 @@ class PedidoController extends Controller
         return Inertia::render('Pedidos/Index', [
             'role'     => $role,
             'pedidos'  => $pedidos,
+
+            // filtros “simples”
             'q'        => $q,
             'estado'   => $estado,
             'asignado' => $asignado,
             'estados'  => ['pendiente', 'preparando', 'listo', 'en_camino', 'entregado', 'cancelado'],
+
+            // 🔹 NUEVO: enviar fechas a la vista
+            'desde'    => $desde,
+            'hasta'    => $hasta,
         ]);
     }
 
@@ -136,9 +160,11 @@ class PedidoController extends Controller
     /** Detalle (Admin y Vendedor) */
     public function show(Request $request, Pedido $pedido)
     {
+        // 🔹 Ahora también cargamos la relación cliente
         $pedido->load([
             'items.producto',
             'logs.user:id,name',
+            'cliente', // 👈 importante para ver quién hizo el pedido
         ]);
 
         $repartidores = User::query()
@@ -167,6 +193,16 @@ class PedidoController extends Controller
             'referencias' => $pedido->entrega_referencias ?? ($dom['referencias'] ?? null),
         ];
 
+        // 🔹 Datos del cliente (si el pedido viene de un cliente en línea)
+        $cliente = $pedido->cliente
+            ? [
+                'id'       => (int) $pedido->cliente->id,
+                'nombre'   => $pedido->cliente->name,
+                'email'    => $pedido->cliente->email,
+                'telefono' => $pedido->cliente->telefono ?? null, // ajusta si tu columna se llama distinto
+            ]
+            : null;
+
         return Inertia::render('Pedidos/Show', [
             'role' => $role,
             'pedido' => [
@@ -178,6 +214,9 @@ class PedidoController extends Controller
                 'observaciones' => $pedido->observaciones,
                 'created_at'    => $pedido->created_at?->format('Y-m-d H:i'),
                 'asignado_a'    => $pedido->asignado_a,
+
+                // 🔹 Bloque de cliente
+                'cliente'       => $cliente,
 
                 // planas
                 'entrega_nombre'      => $envio['nombre'],
@@ -263,7 +302,7 @@ class PedidoController extends Controller
                         ->where('motivo', 'pedido:' . $pedido->id)
                         ->exists();
 
-                    if ($yaAplicado) continue;
+                    if ($yaAplicado) return;
 
                     $inv = Inventario::firstOrCreate(
                         ['producto_id' => $prodId],

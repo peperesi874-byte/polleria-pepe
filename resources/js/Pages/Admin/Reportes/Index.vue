@@ -20,10 +20,12 @@ const INVENTARIO_EXPORT_CSV_URL      = '/admin/inventario/export/csv'
 const INVENTARIO_EXPORT_PDF_URL      = '/admin/inventario/export/pdf'
 const INVENTARIO_HISTORIAL_CSV_URL   = '/admin/inventario/movimientos/export/csv'
 const REPORTES_PRODUCTOS_CSV_URL     = '/admin/reportes/productos/export/csv'
+const REPORTES_PRODUCTOS_PDF_URL     = '/admin/reportes/productos/export/pdf'   // 🔴 NUEVO
 
 // 👇 NUEVO: Reporte de ingresos
 const REPORTES_INGRESOS_URL          = '/admin/reportes/ingresos'
 const REPORTES_INGRESOS_CSV_URL      = '/admin/reportes/ingresos/export/csv'
+const REPORTES_INGRESOS_PDF_URL      = '/admin/reportes/ingresos/export/pdf'    // 🔴 NUEVO
 </script>
 
 <template>
@@ -126,7 +128,7 @@ const REPORTES_INGRESOS_CSV_URL      = '/admin/reportes/ingresos/export/csv'
                   <!-- ⬇ CSV movimientos (URL directa) -->
                   <a :href="INVENTARIO_HISTORIAL_CSV_URL" :class="btn('outline')">
                     <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="currentColor">
-                      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8zm1 7H9V7h6z" />
+                      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
                     </svg>
                     CSV
                   </a>
@@ -160,7 +162,7 @@ const REPORTES_INGRESOS_CSV_URL      = '/admin/reportes/ingresos/export/csv'
                   Exporta la lista de productos (nombre y precio).
                 </p>
 
-                <div class="mt-4">
+                <div class="mt-4 flex flex-wrap items-center gap-2">
                   <!-- ⬇ CSV productos (URL directa) -->
                   <a :href="REPORTES_PRODUCTOS_CSV_URL" :class="btn('outline')">
                     <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="currentColor">
@@ -168,12 +170,22 @@ const REPORTES_INGRESOS_CSV_URL      = '/admin/reportes/ingresos/export/csv'
                     </svg>
                     CSV
                   </a>
+
+                  <!-- 🔴 NUEVO: PDF productos -->
+                  <a :href="REPORTES_PRODUCTOS_PDF_URL" target="_blank" :class="btn('solid')">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="currentColor">
+                      <path
+                        d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8zm-1 13h-1v3h-2v-8h3a2 2 0 0 1 0 4zm0-3h-1v1h1a.5.5 0 0 0 0-1z"
+                      />
+                    </svg>
+                    PDF
+                  </a>
                 </div>
               </div>
             </div>
           </div>
 
-          <!-- 🔥 NUEVO: Reemplazo del "Próximo reporte…" sin tocar lo demás -->
+          <!-- Ingresos (ventas entregadas) -->
           <div :class="card">
             <div class="flex items-start gap-4">
               <div class="rounded-xl bg-amber-50 p-3 text-amber-700">
@@ -197,11 +209,15 @@ const REPORTES_INGRESOS_CSV_URL      = '/admin/reportes/ingresos/export/csv'
                   <a :href="REPORTES_INGRESOS_CSV_URL" :class="btn('outline')">
                     CSV
                   </a>
+                  <!-- 🔴 NUEVO: Exportar PDF -->
+                  <a :href="REPORTES_INGRESOS_PDF_URL" target="_blank" :class="btn('outline')">
+                    PDF
+                  </a>
                 </div>
               </div>
             </div>
           </div>
-          <!-- /NUEVO -->
+          <!-- /Ingresos -->
         </div>
       </section>
     </div>

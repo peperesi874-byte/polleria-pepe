@@ -169,7 +169,23 @@ const guardar = () => {
               </div>
 
               <div class="flex-1">
-                <input type="file" accept="image/*" @change="onFile" />
+                <!-- Input real oculto -->
+                <input
+                  id="imagen"
+                  type="file"
+                  accept="image/*"
+                  class="hidden"
+                  @change="onFile"
+                />
+
+                <!-- Botón personalizado -->
+                <label
+                  for="imagen"
+                  class="inline-flex items-center gap-2 rounded-xl border bg-white px-3 py-2 cursor-pointer shadow-sm text-gray-700 hover:bg-gray-50"
+                >
+                  📁 Seleccionar imagen
+                </label>
+
                 <p v-if="form.errors.imagen" class="mt-1 text-sm text-rose-600">{{ form.errors.imagen }}</p>
 
                 <button

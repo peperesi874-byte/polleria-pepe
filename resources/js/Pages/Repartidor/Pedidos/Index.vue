@@ -87,72 +87,129 @@ const cambiarEstado = (pedido, estado) => {
     { preserveScroll: true }
   )
 }
+
+// -------------------- Scroll a secciones --------------------
+const scrollToSection = (id) => {
+  const el = document.getElementById(id)
+  if (el) {
+    el.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }
+}
 </script>
 
 <template>
   <AuthenticatedLayout>
-    <!-- HEADER del layout (igual concepto que Vendedor / Admin) -->
+    <!-- HEADER con estilo similar a los paneles -->
     <template #header>
-      <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-2">
-        <div>
-          <h2 class="font-semibold text-xl text-neutral-900 leading-tight">
-            Pedidos asignados
-          </h2>
-          <p class="text-sm text-neutral-500">
-            Entregas pendientes y en ruta para {{ repartidorName }}.
-          </p>
+      <div
+        class="relative overflow-hidden rounded-2xl bg-gradient-to-r from-sky-50 via-indigo-50 to-emerald-50 px-6 py-5 ring-1 ring-sky-100 shadow-sm"
+      >
+        <div class="pointer-events-none absolute -right-16 -top-10 h-32 w-32 rounded-full bg-sky-200/30 blur-2xl" />
+        <div class="pointer-events-none absolute -left-10 bottom-0 h-28 w-28 rounded-full bg-emerald-200/40 blur-2xl" />
+
+        <div class="relative flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+          <div class="flex items-start gap-3">
+            <div
+              class="grid h-11 w-11 place-items-center rounded-2xl bg-sky-600 text-white shadow-md shadow-sky-200 text-xl"
+            >
+              📋
+            </div>
+            <div>
+              <p class="text-xs font-semibold uppercase tracking-[0.18em] text-sky-700/80">
+                Pedidos asignados
+              </p>
+              <h2 class="mt-1 text-2xl md:text-3xl font-bold text-neutral-900 leading-tight">
+                Entregas para {{ repartidorName }}
+              </h2>
+              <p class="mt-1 text-sm text-neutral-600 max-w-xl">
+                Revisa tus pedidos por salir, en camino y el historial reciente de entregas.
+              </p>
+            </div>
+          </div>
+
+          <div class="flex flex-col items-end gap-2">
+            <div class="rounded-xl bg-white/80 px-3 py-2 text-right shadow-sm border border-sky-50">
+              <p class="text-[11px] uppercase tracking-[0.16em] text-neutral-400">
+                Hoy
+              </p>
+              <p class="text-sm font-medium text-neutral-800">
+                {{
+                  new Date().toLocaleDateString('es-MX', {
+                    weekday: 'long',
+                    day: '2-digit',
+                    month: 'short',
+                    year: 'numeric',
+                  })
+                }}
+              </p>
+            </div>
+          </div>
         </div>
       </div>
     </template>
 
-    <!-- CONTENIDO -->
-    <div class="max-w-6xl mx-auto p-6 space-y-8">
+    <!-- CONTENIDO con fondo suave -->
+    <div
+      class="max-w-6xl mx-auto p-6 space-y-8 bg-gradient-to-b from-slate-50 via-white to-sky-50/40 rounded-3xl"
+    >
       <!-- KPIs -->
       <section class="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <!-- Por salir -->
-        <div class="rounded-2xl border bg-white shadow-sm p-4 flex flex-col gap-2">
+        <button
+          type="button"
+          @click="scrollToSection('sec-por-salir')"
+          class="rounded-2xl border border-amber-100 bg-white/95 shadow-sm p-4 flex flex-col gap-2 hover:-translate-y-1 hover:shadow-lg transition-all cursor-pointer text-left"
+        >
           <p class="text-xs font-semibold text-amber-700 uppercase tracking-wide">
             Por salir
           </p>
-          <p class="text-3xl font-bold text-neutral-900">
+          <p class="text-3xl font-extrabold text-amber-700">
             {{ porSalir.length }}
           </p>
           <p class="text-xs text-neutral-500">
             Pedidos pendientes o listos que aún no han salido a reparto.
           </p>
-        </div>
+        </button>
 
         <!-- En camino -->
-        <div class="rounded-2xl border bg-white shadow-sm p-4 flex flex-col gap-2">
+        <button
+          type="button"
+          @click="scrollToSection('sec-en-camino')"
+          class="rounded-2xl border border-sky-100 bg-white/95 shadow-sm p-4 flex flex-col gap-2 hover:-translate-y-1 hover:shadow-lg transition-all cursor-pointer text-left"
+        >
           <p class="text-xs font-semibold text-sky-700 uppercase tracking-wide">
             En camino
           </p>
-          <p class="text-3xl font-bold text-neutral-900">
+          <p class="text-3xl font-extrabold text-sky-700">
             {{ enCamino.length }}
           </p>
           <p class="text-xs text-neutral-500">
             Entregas actualmente en ruta.
           </p>
-        </div>
+        </button>
 
         <!-- Historial (entregados) -->
-        <div class="rounded-2xl border bg-white shadow-sm p-4 flex flex-col gap-2">
+        <button
+          type="button"
+          @click="scrollToSection('sec-historial')"
+          class="rounded-2xl border border-emerald-100 bg-white/95 shadow-sm p-4 flex flex-col gap-2 hover:-translate-y-1 hover:shadow-lg transition-all cursor-pointer text-left"
+        >
           <p class="text-xs font-semibold text-emerald-700 uppercase tracking-wide">
             Entregados (recientes)
           </p>
-          <p class="text-3xl font-bold text-neutral-900">
+          <p class="text-3xl font-extrabold text-emerald-700">
             {{ historial.filter(p => p.estado === 'entregado').length }}
           </p>
           <p class="text-xs text-neutral-500">
             Pedidos marcados como entregados en las últimas asignaciones.
           </p>
-        </div>
+        </button>
       </section>
 
       <!-- SI NO HAY NADA -->
       <section
         v-if="!pedidos.length"
-        class="border border-dashed rounded-2xl p-10 text-center bg-white/60 shadow-sm"
+        class="border border-dashed rounded-2xl p-10 text-center bg-white/80 shadow-sm"
       >
         <p class="text-base font-semibold text-neutral-700">
           No tienes entregas asignadas por ahora.
@@ -168,7 +225,7 @@ const cambiarEstado = (pedido, estado) => {
         class="space-y-8"
       >
         <!-- POR SALIR -->
-        <div>
+        <div id="sec-por-salir">
           <div class="flex items-center justify-between mb-3">
             <div class="flex items-center gap-2">
               <h2 class="text-sm font-semibold text-neutral-800 uppercase tracking-wide">
@@ -184,7 +241,7 @@ const cambiarEstado = (pedido, estado) => {
 
           <div
             v-if="!porSalir.length"
-            class="rounded-2xl border bg-neutral-50/60 p-4 text-xs text-neutral-500"
+            class="rounded-2xl border bg-neutral-50/70 p-4 text-xs text-neutral-500"
           >
             No hay pedidos pendientes ni listos para reparto.
           </div>
@@ -196,7 +253,7 @@ const cambiarEstado = (pedido, estado) => {
             <div
               v-for="pedido in porSalir"
               :key="'ps-' + pedido.id"
-              class="border rounded-2xl p-4 bg-white shadow-sm flex flex-col gap-3"
+              class="border border-slate-100 rounded-2xl p-4 bg-white shadow-sm flex flex-col gap-3 hover:shadow-md hover:-translate-y-[2px] transition-all"
             >
               <!-- Encabezado pedido -->
               <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-2">
@@ -292,7 +349,7 @@ const cambiarEstado = (pedido, estado) => {
         </div>
 
         <!-- EN CAMINO -->
-        <div>
+        <div id="sec-en-camino">
           <div class="flex items-center justify-between mb-3">
             <div class="flex items-center gap-2">
               <h2 class="text-sm font-semibold text-neutral-800 uppercase tracking-wide">
@@ -308,7 +365,7 @@ const cambiarEstado = (pedido, estado) => {
 
           <div
             v-if="!enCamino.length"
-            class="rounded-2xl border bg-neutral-50/60 p-4 text-xs text-neutral-500"
+            class="rounded-2xl border bg-neutral-50/70 p-4 text-xs text-neutral-500"
           >
             No tienes entregas en camino en este momento.
           </div>
@@ -320,7 +377,7 @@ const cambiarEstado = (pedido, estado) => {
             <div
               v-for="pedido in enCamino"
               :key="'ec-' + pedido.id"
-              class="border rounded-2xl p-4 bg-white shadow-sm flex flex-col gap-3"
+              class="border border-slate-100 rounded-2xl p-4 bg-white shadow-sm flex flex-col gap-3 hover:shadow-md hover:-translate-y-[2px] transition-all"
             >
               <!-- Encabezado -->
               <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-2">
@@ -416,7 +473,7 @@ const cambiarEstado = (pedido, estado) => {
         </div>
 
         <!-- HISTORIAL -->
-        <div>
+        <div id="sec-historial">
           <div class="flex items-center justify-between mb-3">
             <div class="flex items-center gap-2">
               <h2 class="text-sm font-semibold text-neutral-800 uppercase tracking-wide">
@@ -432,19 +489,19 @@ const cambiarEstado = (pedido, estado) => {
 
           <div
             v-if="!historial.length"
-            class="rounded-2xl border bg-neutral-50/60 p-4 text-xs text-neutral-500"
+            class="rounded-2xl border bg-neutral-50/70 p-4 text-xs text-neutral-500"
           >
             Aún no hay historial de entregas o cancelaciones recientes.
           </div>
 
           <div
             v-else
-            class="rounded-2xl border bg-white shadow-sm divide-y"
+            class="rounded-2xl border border-slate-100 bg-white shadow-sm divide-y"
           >
             <div
               v-for="pedido in historial"
               :key="'hist-' + pedido.id"
-              class="px-4 py-3 flex items-center justify-between gap-3"
+              class="px-4 py-3 flex items-center justify-between gap-3 hover:bg-slate-50/70 transition"
             >
               <div class="flex-1 min-w-0">
                 <p class="text-sm font-medium text-neutral-900 truncate">
