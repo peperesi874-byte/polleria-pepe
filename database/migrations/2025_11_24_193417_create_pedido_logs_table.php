@@ -13,7 +13,6 @@ return new class extends Migration
             $table->foreignId('pedido_id')->constrained('pedidos')->cascadeOnDelete();
             $table->foreignId('user_id')->nullable()->constrained('users')->nullOnDelete();
 
-            // acción registrada
             $table->enum('accion', [
                 'estado_cambiado',
                 'asignado',
@@ -21,11 +20,8 @@ return new class extends Migration
                 'cancelado',
             ]);
 
-            // valores de referencia
-            $table->string('de', 100)->nullable();  // p.ej. estado anterior o repartidor anterior
-            $table->string('a', 100)->nullable();   // p.ej. estado nuevo o repartidor nuevo
-
-            // motivo opcional (para cancelación)
+            $table->string('de', 100)->nullable();
+            $table->string('a', 100)->nullable();
             $table->string('motivo')->nullable();
 
             $table->timestamps();
