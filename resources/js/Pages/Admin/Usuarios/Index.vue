@@ -11,13 +11,12 @@ const links   = computed(() => users.value?.links ?? [])
 const filters = page.props.filters ?? { q: '' }
 const total   = computed(() => users.value?.total ?? items.value.length)
 
-/** Stats rápidos por rol para las tarjetas */
+/** Stats rápidos por rol para las tarjetas (SIN CAJERO) */
 const roleStats = computed(() => {
-  const stats = { total: total.value, admin: 0, cajero: 0, repartidor: 0 }
+  const stats = { total: total.value, admin: 0, repartidor: 0 }
   items.value.forEach(u => {
     const n = (u.role?.nombre || '').toLowerCase()
     if (n.includes('admin')) stats.admin++
-    else if (n.includes('cajer')) stats.cajero++
     else if (n.includes('repart')) stats.repartidor++
   })
   return stats
@@ -52,11 +51,10 @@ function borrar(id) {
   router.delete(url, { preserveScroll: true })
 }
 
-/** Badge de rol (colores pastel estilo panel) */
+/** Badge de rol (colores pastel estilo panel, SIN CAJERO) */
 function rolePillClass(nombre) {
   const n = (nombre || '').toString().toLowerCase()
   if (n.includes('admin'))   return 'bg-indigo-50 text-indigo-700 ring-1 ring-indigo-200'
-  if (n.includes('cajer'))   return 'bg-amber-50 text-amber-700 ring-1 ring-amber-200'
   if (n.includes('repart'))  return 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200'
   return 'bg-slate-50 text-slate-700 ring-1 ring-slate-200'
 }
@@ -102,12 +100,6 @@ function initials(name = '') {
               >
                 <span>👑</span>
                 <span>{{ roleStats.admin }} administradores</span>
-              </div>
-              <div
-                class="inline-flex items-center gap-2 rounded-full bg-white/15 px-3 py-1"
-              >
-                <span>💳</span>
-                <span>{{ roleStats.cajero }} cajeros</span>
               </div>
               <div
                 class="inline-flex items-center gap-2 rounded-full bg-white/15 px-3 py-1"
@@ -167,121 +159,107 @@ function initials(name = '') {
 
     <!-- ===== CONTENIDO ===== -->
     <div class="max-w-7xl mx-auto px-6 py-8 space-y-6">
-      <!-- FILA DE TARJETAS PASTEL + BUSCADOR -->
-      <div class="flex flex-col gap-4 lg:flex-row lg:items-stretch">
-        <!-- Tarjetas -->
-        <div class="flex-1 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          <div
-            class="rounded-3xl border border-yellow-100 bg-gradient-to-b from-yellow-50 to-amber-50 px-4 py-4 shadow-sm"
-          >
-            <div class="flex items-center justify-between">
-              <p class="text-xs font-semibold text-amber-700">USUARIOS</p>
-              <div
-                class="grid h-8 w-8 place-items-center rounded-full bg-amber-400/90 text-white shadow-md"
-              >
-                👥
-              </div>
+      <!-- FILA DE TARJETAS + BUSCADOR COMO 4ª TARJETA -->
+      <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4 lg:items-stretch">
+        <!-- Tarjeta: USUARIOS -->
+        <div
+          class="rounded-3xl border border-yellow-100 bg-gradient-to-b from-yellow-50 to-amber-50 px-4 py-4 shadow-sm"
+        >
+          <div class="flex items-center justify-between">
+            <p class="text-xs font-semibold text-amber-700">USUARIOS</p>
+            <div
+              class="grid h-8 w-8 place-items-center rounded-full bg-amber-400/90 text-white shadow-md"
+            >
+              👥
             </div>
-            <p class="mt-3 text-2xl font-bold text-slate-900">
-              {{ roleStats.total }}
-            </p>
-            <p class="mt-1 text-xs text-slate-600">
-              Activos en el sistema.
-            </p>
           </div>
-
-          <div
-            class="rounded-3xl border border-pink-100 bg-gradient-to-b from-pink-50 to-rose-50 px-4 py-4 shadow-sm"
-          >
-            <div class="flex items-center justify-between">
-              <p class="text-xs font-semibold text-rose-700">ADMINISTRADORES</p>
-              <div
-                class="grid h-8 w-8 place-items-center rounded-full bg-rose-400/90 text-white shadow-md"
-              >
-                👑
-              </div>
-            </div>
-            <p class="mt-3 text-2xl font-bold text-slate-900">
-              {{ roleStats.admin }}
-            </p>
-            <p class="mt-1 text-xs text-slate-600">
-              Con acceso completo.
-            </p>
-          </div>
-
-          <div
-            class="rounded-3xl border border-sky-100 bg-gradient-to-b from-sky-50 to-blue-50 px-4 py-4 shadow-sm"
-          >
-            <div class="flex items-center justify-between">
-              <p class="text-xs font-semibold text-sky-700">CAJEROS</p>
-              <div
-                class="grid h-8 w-8 place-items-center rounded-full bg-sky-400/90 text-white shadow-md"
-              >
-                💳
-              </div>
-            </div>
-            <p class="mt-3 text-2xl font-bold text-slate-900">
-              {{ roleStats.cajero }}
-            </p>
-            <p class="mt-1 text-xs text-slate-600">
-              Manejo de ventas y cobros.
-            </p>
-          </div>
-
-          <div
-            class="rounded-3xl border border-emerald-100 bg-gradient-to-b from-emerald-50 to-emerald-50 px-4 py-4 shadow-sm"
-          >
-            <div class="flex items-center justify-between">
-              <p class="text-xs font-semibold text-emerald-700">REPARTIDORES</p>
-              <div
-                class="grid h-8 w-8 place-items-center rounded-full bg-emerald-400/90 text-white shadow-md"
-              >
-                🚚
-              </div>
-            </div>
-            <p class="mt-3 text-2xl font-bold text-slate-900">
-              {{ roleStats.repartidor }}
-            </p>
-            <p class="mt-1 text-xs text-slate-600">
-              Encargados de entregas.
-            </p>
-          </div>
+          <p class="mt-3 text-2xl font-bold text-slate-900">
+            {{ roleStats.total }}
+          </p>
+          <p class="mt-1 text-xs text-slate-600">
+            Activos en el sistema.
+          </p>
         </div>
 
-        <!-- Buscador -->
-        <div class="lg:w-72">
-          <p class="mb-1 text-xs font-semibold text-slate-500 uppercase tracking-wide">
-            Buscar usuario
-          </p>
-          <div class="relative">
+        <!-- Tarjeta: ADMINISTRADORES -->
+        <div
+          class="rounded-3xl border border-pink-100 bg-gradient-to-b from-pink-50 to-rose-50 px-4 py-4 shadow-sm"
+        >
+          <div class="flex items-center justify-between">
+            <p class="text-xs font-semibold text-rose-700">ADMINISTRADORES</p>
             <div
-              class="pointer-events-none absolute inset-0 rounded-2xl bg-gradient-to-r from-amber-300/0 via-amber-300/20 to-amber-300/0 blur"
-            />
-            <div
-              class="relative flex items-center gap-2 rounded-2xl border border-amber-100 bg-white px-3 py-2 shadow-sm"
+              class="grid h-8 w-8 place-items-center rounded-full bg-rose-400/90 text-white shadow-md"
             >
-              <span class="flex h-8 w-8 items-center justify-center rounded-xl bg-amber-100 text-sm">
-                🔍
-              </span>
-              <input
-                v-model="q"
-                type="search"
-                placeholder="Nombre o correo…"
-                class="w-full border-0 bg-transparent text-sm text-slate-800 outline-none focus:ring-0"
-              />
-              <button
-                v-if="q"
-                type="button"
-                @click="q = ''"
-                class="text-[11px] text-slate-400 hover:text-slate-600"
-              >
-                Limpiar
-              </button>
+              👑
             </div>
-            <p class="mt-1 text-[11px] text-slate-500">
-              {{ total }} usuario{{ total === 1 ? '' : 's' }} en el sistema.
-            </p>
           </div>
+          <p class="mt-3 text-2xl font-bold text-slate-900">
+            {{ roleStats.admin }}
+          </p>
+          <p class="mt-1 text-xs text-slate-600">
+            Con acceso completo.
+          </p>
+        </div>
+
+        <!-- Tarjeta: REPARTIDORES -->
+        <div
+          class="rounded-3xl border border-emerald-100 bg-gradient-to-b from-emerald-50 to-emerald-50 px-4 py-4 shadow-sm"
+        >
+          <div class="flex items-center justify-between">
+            <p class="text-xs font-semibold text-emerald-700">REPARTIDORES</p>
+            <div
+              class="grid h-8 w-8 place-items-center rounded-full bg-emerald-400/90 text-white shadow-md"
+            >
+              🚚
+            </div>
+          </div>
+          <p class="mt-3 text-2xl font-bold text-slate-900">
+            {{ roleStats.repartidor }}
+          </p>
+          <p class="mt-1 text-xs text-slate-600">
+            Encargados de entregas.
+          </p>
+        </div>
+
+        <!-- Tarjeta: BUSCAR USUARIO (ocupa el espacio vacío) -->
+        <div
+          class="rounded-3xl border border-amber-100 bg-white px-4 py-4 shadow-sm flex flex-col justify-between"
+        >
+          <div>
+            <p class="mb-1 text-xs font-semibold text-slate-500 uppercase tracking-wide">
+              Buscar usuario
+            </p>
+            <div class="relative">
+              <div
+                class="pointer-events-none absolute inset-0 rounded-2xl bg-gradient-to-r from-amber-300/0 via-amber-300/15 to-amber-300/0 blur"
+              />
+              <div
+                class="relative flex items-center gap-2 rounded-2xl border border-amber-100 bg-white px-3 py-2 shadow-sm"
+              >
+                <span class="flex h-8 w-8 items-center justify-center rounded-xl bg-amber-100 text-sm">
+                  🔍
+                </span>
+                <input
+                  v-model="q"
+                  type="search"
+                  placeholder="Nombre o correo…"
+                  class="w-full border-0 bg-transparent text-sm text-slate-800 outline-none focus:ring-0"
+                />
+                <button
+                  v-if="q"
+                  type="button"
+                  @click="q = ''"
+                  class="text-[11px] text-slate-400 hover:text-slate-600"
+                >
+                  Limpiar
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <p class="mt-2 text-[11px] text-slate-500 text-right">
+            {{ total }} usuario{{ total === 1 ? '' : 's' }} en el sistema.
+          </p>
         </div>
       </div>
 

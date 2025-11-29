@@ -1,7 +1,7 @@
-<!-- resources/js/Pages/Catalogo/Index.vue (por ejemplo) -->
+<!-- resources/js/Pages/Catalogo/Index.vue -->
 <script setup>
 import { router, usePage } from '@inertiajs/vue3'
-import { ref, computed, watch } from 'vue'
+import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue'
 import { route } from 'ziggy-js'
 
 import CatalogLayout from '@/Layouts/CatalogLayout.vue'
@@ -103,6 +103,37 @@ function closePreview() {
   quickOpen.value = false
 }
 
+/* -------- Carrusel simple del héroe (solo imágenes) -------- */
+const currentIndex = ref(0)
+
+const hayProductosHero = computed(() => items.value.length > 0)
+
+const currentHeroProduct = computed(() =>
+  hayProductosHero.value ? items.value[currentIndex.value] : null
+)
+
+watch(items, () => {
+  currentIndex.value = 0
+})
+
+function nextHero() {
+  if (!hayProductosHero.value) return
+  currentIndex.value = (currentIndex.value + 1) % items.value.length
+}
+
+let heroTimer = null
+
+onMounted(() => {
+  if (!hayProductosHero.value) return
+  heroTimer = setInterval(() => {
+    nextHero()
+  }, 2000) // cambia cada 2 segundos
+})
+
+onBeforeUnmount(() => {
+  if (heroTimer) clearInterval(heroTimer)
+})
+
 /* ----------------- Carrito ----------------- */
 function addToCart(producto) {
   if (!producto?.id) return
@@ -134,8 +165,20 @@ const fmtMoney = n =>
     currency: 'MXN',
   }).format(Number(n ?? 0))
 
-const imgSrc = p =>
-  p.imagen_catalogo_url || p.imagen_url || '/placeholder-producto.png'
+const imgSrc = (p) => {
+  if (!p) return '/placeholder-producto.png'
+
+  // misma propiedad que usa el modal
+  if (p.imagenUrl) return p.imagenUrl
+
+  // por si en el futuro agregas otras variantes
+  if (p.imagen_catalogo_url) return p.imagen_catalogo_url
+  if (p.imagen_detalle_url)  return p.imagen_detalle_url
+  if (p.imagen_url)          return p.imagen_url
+  if (p.imagen)              return `/storage/${p.imagen}`
+
+  return '/placeholder-producto.png'
+}
 </script>
 
 <template>
@@ -181,60 +224,47 @@ const imgSrc = p =>
           </div>
         </div>
 
-        <!-- DERECHA -->
+        <!-- DERECHA: carrusel decorativo solo de imágenes -->
         <div
           class="relative rounded-3xl bg-white/90 ring-1 ring-amber-100 shadow-[0_18px_40px_rgba(248,186,92,0.4)] overflow-hidden"
         >
           <div class="absolute -left-10 -top-10 h-32 w-32 rounded-full bg-amber-300/30 blur-3xl" />
           <div class="absolute -right-10 -bottom-10 h-32 w-32 rounded-full bg-rose-300/25 blur-3xl" />
 
-          <div class="relative p-5 space-y-4">
+          <div v-if="hayProductosHero && currentHeroProduct" class="relative p-4 space-y-3">
             <div class="flex items-center justify-between">
-              <p class="text-xs font-semibold uppercase tracking-[0.18em] text-amber-700">
-                Vista rápida de catálogo
+              <p class="text-[11px] font-semibold uppercase tracking-[0.18em] text-amber-700">
+                Catálogo Pollería Pepe
               </p>
-              <span class="inline-flex items-center gap-1 rounded-full bg-amber-50 px-3 py-1 text-[11px] font-semibold text-amber-800">
-                Actualizado al día
+              <span class="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2.5 py-1 text-[10px] font-semibold text-amber-800">
+                {{ currentIndex + 1 }} / {{ items.length }}
               </span>
             </div>
 
-            <div class="grid gap-3 text-sm">
-              <div
-                class="flex items-center justify-between rounded-2xl bg-gradient-to-r from-amber-50 via-amber-100/60 to-white px-3 py-2 border border-amber-100"
-              >
-                <div>
-                  <p class="text-xs text-neutral-500">Productos totales</p>
-                  <p class="text-xl font-bold text-amber-700">
-                    {{ items.length }}
-                  </p>
-                </div>
-                <div class="text-3xl">📦</div>
-              </div>
+            <!-- Solo la imagen del producto -->
+            <div class="relative rounded-2xl overflow-hidden border border-amber-100 bg-neutral-50">
+              <img
+  :src="imgSrc(currentHeroProduct)"
+  :alt="currentHeroProduct?.nombre"
+  class="mx-auto h-56 w-auto object-contain drop-shadow-md rounded-xl"
+/>
 
-              <div class="grid grid-cols-2 gap-3">
-                <div class="rounded-2xl border border-neutral-100 bg-neutral-50/70 px-3 py-2">
-                  <p class="text-[11px] text-neutral-500 uppercase tracking-wide">
-                    Catálogo
-                  </p>
-                  <p class="text-sm font-medium text-neutral-800">
-                    Piezas, cortes, combos
-                  </p>
-                </div>
-                <div class="rounded-2xl border border-neutral-100 bg-neutral-50/70 px-3 py-2">
-                  <p class="text-[11px] text-neutral-500 uppercase tracking-wide">
-                    Compra rápida
-                  </p>
-                  <p class="text-sm font-medium text-neutral-800">
-                    Agrega al carrito en 1 clic
-                  </p>
-                </div>
-              </div>
-
-              <p class="text-[11px] text-neutral-500">
-                Tip: puedes ordenar por precio o ver primero los productos más
-                recientes agregados al catálogo.
-              </p>
             </div>
+
+            <!-- Puntos de posición -->
+            <div class="flex justify-center gap-1 pt-1">
+              <span
+                v-for="(p, i) in items"
+                :key="p.id"
+                class="h-1.5 w-5 rounded-full"
+                :class="i === currentIndex ? 'bg-amber-500' : 'bg-neutral-300/80'"
+              />
+            </div>
+          </div>
+
+          <!-- Si no hay productos -->
+          <div v-else class="relative p-6 text-center text-sm text-neutral-500">
+            Próximamente catálogo de productos.
           </div>
         </div>
       </div>
@@ -352,12 +382,15 @@ const imgSrc = p =>
           class="group relative flex flex-col rounded-3xl border border-neutral-200/80 bg-white/95 shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all overflow-hidden"
         >
           <!-- Imagen -->
-          <div class="relative">
-            <img
-              :src="imgSrc(p)"
-              alt=""
-              class="w-full h-44 object-cover transition group-hover:scale-[1.03]"
-            />
+          <div
+class="mx-auto h-40 w-auto object-contain transition-transform duration-200 group-hover:scale-105 rounded-xl"
+  @click="openPreview(p)"
+>
+  <img
+    :src="imgSrc(p)"
+    :alt="p.nombre"
+    class="mx-auto h-40 w-auto object-contain transition group-hover:scale-[1.03] rounded-xl"
+  />
             <div
               class="absolute inset-x-0 bottom-0 h-14 bg-gradient-to-t from-black/50 via-black/10 to-transparent"
             ></div>
