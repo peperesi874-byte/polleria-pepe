@@ -2,90 +2,103 @@
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue'
 import { Link, router } from '@inertiajs/vue3'
 import { ref, watch, computed } from 'vue'
-import { route } from 'ziggy-js' // 👈 Asegura Ziggy por import nombrado
+import { route } from 'ziggy-js'
 
 const props = defineProps({
-  role: { type: String, default: 'admin' }, // 👈 viene del controlador (admin|vendedor)
-  pedidos: Object,        // paginator
-  filters: Object,        // { q, estado, asignado }
-  estados: Array,
+  role:    { type: String, default: 'admin' }, // 'admin' | 'vendedor'
+  pedidos: { type: Object, required: true },   // paginator
+  q:       { type: String, default: '' },
+  estado:  { type: String, default: '' },
+  asignado:{ type: String, default: '' },      // '', 'any', 'none'
+  desde:   { type: String, default: '' },      // YYYY-MM-DD
+  hasta:   { type: String, default: '' },      // YYYY-MM-DD
+  estados: { type: Array,  default: () => [] },
 })
 
-/* --------- Prefijo por rol (admin. | vendedor.) --------- */
-const prefix = computed(() => (props.role === 'vendedor' ? 'vendedor.' : 'admin.'))
+/* --------- Prefijo/base según rol --------- */
+const base = computed(() => (props.role === 'vendedor' ? 'vendedor' : 'admin'))
 
-/* ---------------- Filtros con debounce ---------------- */
-const q        = ref(props.filters?.q ?? '')
-const estado   = ref(props.filters?.estado ?? '')
-const asignado = ref(props.filters?.asignado ?? '') // '', 'any', 'none'
+/* --------- Filtros con debounce --------- */
+const q        = ref(props.q ?? '')
+const estado   = ref(props.estado ?? '')
+const asignado = ref(props.asignado ?? '')
+const desde    = ref(props.desde ?? '')
+const hasta    = ref(props.hasta ?? '')
 
 let t = null
-watch([q, estado, asignado], () => {
+watch([q, estado, asignado, desde, hasta], () => {
   clearTimeout(t)
   t = setTimeout(() => {
     router.get(
-      route(prefix.value + 'pedidos.index'), // 👈 usa el grupo correcto
-      { q: q.value, estado: estado.value, asignado: asignado.value },
+      route(base.value + '.pedidos.index'),
+      {
+        q: q.value,
+        estado: estado.value,
+        asignado: asignado.value,
+        desde: desde.value || '',
+        hasta: hasta.value || '',
+      },
       { preserveState: true, replace: true }
     )
   }, 300)
 })
 
 /* ---------------- Helpers UI ---------------- */
-const money = (n) =>
+const money = n =>
   new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' }).format(n ?? 0)
 
-const estadoPill = (e) => {
+const estadoPill = e => {
   if (e === 'cancelado') return 'bg-rose-100 text-rose-700 ring-1 ring-rose-200'
   if (e === 'entregado') return 'bg-emerald-100 text-emerald-700 ring-1 ring-emerald-200'
   return 'bg-amber-100 text-amber-700 ring-1 ring-amber-200'
 }
 
-const asignadoPill = (has) =>
-  has ? 'bg-indigo-100 text-indigo-700 ring-1 ring-indigo-200'
-      : 'bg-gray-100 text-gray-600 ring-1 ring-gray-200'
-
-const btn = (variant = 'solid') =>
-  [
-    'inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm transition focus:outline-none focus:ring-2 focus:ring-indigo-300',
-    variant === 'solid'
-      ? 'bg-indigo-600 text-white hover:bg-indigo-700'
-      : 'border border-gray-300 text-gray-700 hover:bg-gray-50'
-  ].join(' ')
+const asignadoPill = has =>
+  has
+    ? 'bg-indigo-100 text-indigo-700 ring-1 ring-indigo-200'
+    : 'bg-gray-100 text-gray-600 ring-1 ring-gray-200'
 </script>
 
 <template>
   <AuthenticatedLayout>
-    <!-- ===== HEADER UNIFICADO (tipo Reportes/Inventario) ===== -->
+    <!-- ===== HEADER ===== -->
     <template #header>
-      <!-- Wrapper bonito -->
       <div
         class="rounded-2xl border border-gray-200 bg-gradient-to-r from-indigo-50 to-white px-6 py-4 shadow-sm flex items-center justify-between"
       >
-        <!-- IZQUIERDA -->
         <div class="flex items-center gap-4">
-          <!-- Icono redondo -->
           <div class="h-12 w-12 flex items-center justify-center rounded-xl bg-indigo-100 text-indigo-700">
-            <!-- icono de pedidos -->
             <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" viewBox="0 0 24 24" fill="currentColor">
-              <path d="M3 3h18v2H3zm2 4h14l-1.5 14h-11z"/>
+              <path d="M3 3h18v2H3zm2 4h14l-1.5 14h-11z" />
             </svg>
           </div>
 
-          <!-- Títulos -->
           <div>
-            <h2 class="text-2xl font-semibold text-gray-900">Pedidos</h2>
+            <h2 class="text-2xl font-semibold text-gray-900">
+              {{ base === 'vendedor' ? 'Pedidos en mostrador' : 'Gestión de pedidos' }}
+            </h2>
             <p class="text-sm text-gray-500">
-              Gestión y seguimiento de pedidos del sistema.
+              {{
+                base === 'vendedor'
+                  ? 'Registra y controla los pedidos de clientes presenciales.'
+                  : 'Supervisa y administra los pedidos de todo el sistema.'
+              }}
             </p>
           </div>
         </div>
 
-        <!-- DERECHA -->
         <div class="flex items-center gap-2">
-           <!-- 👈 vuelve al dashboard correcto -->
+          <!-- Botón de nuevo pedido sólo para vendedor -->
           <Link
-            :href="route(prefix + 'dashboard')"  
+            v-if="base === 'vendedor'"
+            :href="route('vendedor.pedidos.create')"
+            class="inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-3 py-2 text-sm font-medium text-white hover:bg-indigo-700"
+          >
+            ➕ Nuevo pedido
+          </Link>
+
+          <Link
+            :href="route(base + '.dashboard')"
             class="text-sm text-indigo-600 hover:underline"
           >
             ← Volver al panel
@@ -97,7 +110,7 @@ const btn = (variant = 'solid') =>
     <!-- ===== CONTENIDO ===== -->
     <div class="max-w-7xl mx-auto px-6 py-8">
       <!-- Filtros -->
-      <div class="mb-6 flex flex-wrap items-center gap-3">
+      <div class="mb-6 flex flex-wrap items-end gap-3">
         <div class="relative w-full md:w-80">
           <input
             v-model="q"
@@ -114,7 +127,7 @@ const btn = (variant = 'solid') =>
         >
           <option value="">Todos los estados</option>
           <option v-for="e in estados" :key="e" :value="e">
-            {{ e.replace('_',' ') }}
+            {{ e.replace('_', ' ') }}
           </option>
         </select>
 
@@ -126,6 +139,25 @@ const btn = (variant = 'solid') =>
           <option value="any">Solo asignados</option>
           <option value="none">Solo sin asignar</option>
         </select>
+
+        <!-- 🔹 Filtros de fecha -->
+        <div class="w-40">
+          <label class="block text-xs font-medium text-neutral-500 mb-1">Desde</label>
+          <input
+            type="date"
+            v-model="desde"
+            class="w-full rounded-xl border border-gray-300/80 bg-white px-3 py-2.5 text-sm shadow-sm outline-none ring-indigo-200 focus:border-indigo-300 focus:ring-2"
+          />
+        </div>
+
+        <div class="w-40">
+          <label class="block text-xs font-medium text-neutral-500 mb-1">Hasta</label>
+          <input
+            type="date"
+            v-model="hasta"
+            class="w-full rounded-xl border border-gray-300/80 bg-white px-3 py-2.5 text-sm shadow-sm outline-none ring-indigo-200 focus:border-indigo-300 focus:ring-2"
+          />
+        </div>
       </div>
 
       <!-- Tabla -->
@@ -147,20 +179,20 @@ const btn = (variant = 'solid') =>
 
           <tbody>
             <tr
-              v-for="(p, i) in props.pedidos.data"
+              v-for="(p, i) in pedidos.data"
               :key="p.id"
               class="border-t border-gray-100 odd:bg-white even:bg-gray-50/30 hover:bg-gray-50/80"
             >
-              <td class="px-4 py-3 text-gray-600">{{ (props.pedidos.from ?? 1) + i }}</td>
+              <td class="px-4 py-3 text-gray-600">{{ (pedidos.from ?? 1) + i }}</td>
               <td class="px-4 py-3 font-medium text-gray-900">{{ p.folio ?? '—' }}</td>
 
               <td class="px-4 py-3">
                 <span class="rounded-full px-2.5 py-1 text-xs font-semibold ring-1" :class="estadoPill(p.estado)">
-                  {{ p.estado.replace('_',' ') }}
+                  {{ p.estado.replace('_', ' ') }}
                 </span>
               </td>
 
-              <td class="px-4 py-3 capitalize text-gray-700">{{ p.tipo.replace('_',' ') }}</td>
+              <td class="px-4 py-3 capitalize text-gray-700">{{ p.tipo.replace('_', ' ') }}</td>
               <td class="px-4 py-3">{{ p.items }}</td>
 
               <td class="px-4 py-3">
@@ -173,9 +205,8 @@ const btn = (variant = 'solid') =>
               <td class="px-4 py-3 text-gray-500">{{ p.created_at }}</td>
 
               <td class="px-4 py-3 text-right">
-              <!-- 👈 detalle con prefijo por rol -->
                 <Link
-                  :href="route(prefix + 'pedidos.show', p.id)"  
+                  :href="route(base + '.pedidos.show', p.id)"
                   class="inline-flex items-center gap-1 rounded-lg border border-indigo-200 px-3 py-1.5 text-indigo-700 hover:bg-indigo-50"
                 >
                   Ver detalle →
@@ -183,7 +214,7 @@ const btn = (variant = 'solid') =>
               </td>
             </tr>
 
-            <tr v-if="props.pedidos.data.length === 0">
+            <tr v-if="(pedidos.data?.length || 0) === 0">
               <td colspan="9" class="px-4 py-10 text-center text-gray-500">
                 No hay pedidos con esos filtros.
               </td>
@@ -195,7 +226,7 @@ const btn = (variant = 'solid') =>
       <!-- Paginación -->
       <div class="mt-6 flex justify-end gap-2">
         <Link
-          v-for="(lnk, i) in props.pedidos.links"
+          v-for="(lnk, i) in pedidos.links"
           :key="i"
           :href="lnk.url || '#'"
           v-html="lnk.label"

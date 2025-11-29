@@ -4,10 +4,20 @@ import { usePage, router } from '@inertiajs/vue3'
 import { computed } from 'vue'
 import { route } from 'ziggy-js'
 
+/* ===================== DATA BASE ===================== */
+
 const page = usePage()
+
+// Todos los pedidos que vienen desde el controlador
 const pedidos = computed(() => page.props.pedidos ?? [])
 
-// -------------------- Helpers de formato --------------------
+// Nombre del repartidor autenticado
+const repartidorName = computed(
+  () => page.props?.auth?.user?.name ?? 'Repartidor'
+)
+
+/* ===================== FORMATOS ===================== */
+
 const fmtMoney = n =>
   new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' })
     .format(Number(n ?? 0))
@@ -18,26 +28,7 @@ const fmtDateTime = value => {
   return d.toLocaleString('es-MX')
 }
 
-const repartidorName = computed(
-  () => page.props?.auth?.user?.name ?? 'Repartidor'
-)
-
-// -------------------- Agrupar pedidos --------------------
-const porSalir = computed(() =>
-  pedidos.value.filter(p =>
-    ['pendiente', 'confirmado', 'en_preparacion', 'listo'].includes(p.estado)
-  )
-)
-
-const enCamino = computed(() =>
-  pedidos.value.filter(p => ['en_camino', 'en_reparto'].includes(p.estado))
-)
-
-const historial = computed(() =>
-  pedidos.value.filter(p => ['entregado', 'cancelado'].includes(p.estado))
-)
-
-// -------------------- Clases y labels --------------------
+// Chip de color según estado
 const estadoBadgeClass = estado => {
   switch (estado) {
     case 'pendiente':
@@ -57,21 +48,43 @@ const estadoBadgeClass = estado => {
   }
 }
 
+// Etiqueta amigable para el estado
 const estadoLabel = estado => {
   switch (estado) {
-    case 'pendiente':        return 'Pendiente'
-    case 'confirmado':       return 'Confirmado'
-    case 'en_preparacion':   return 'En preparación'
-    case 'listo':            return 'Listo para entregar'
+    case 'pendiente':      return 'Pendiente'
+    case 'confirmado':     return 'Confirmado'
+    case 'en_preparacion': return 'En preparación'
+    case 'listo':          return 'Listo para entregar'
     case 'en_reparto':
-    case 'en_camino':        return 'En camino'
-    case 'entregado':        return 'Entregado'
-    case 'cancelado':        return 'Cancelado'
-    default:                 return estado
+    case 'en_camino':      return 'En camino'
+    case 'entregado':      return 'Entregado'
+    case 'cancelado':      return 'Cancelado'
+    default:               return estado
   }
 }
 
-// -------------------- Acciones --------------------
+/* ===================== AGRUPACIONES ===================== */
+
+const porSalir = computed(() =>
+  pedidos.value.filter(p =>
+    ['pendiente', 'confirmado', 'en_preparacion', 'listo'].includes(p.estado)
+  )
+)
+
+const enCamino = computed(() =>
+  pedidos.value.filter(p =>
+    ['en_camino', 'en_reparto'].includes(p.estado)
+  )
+)
+
+const historial = computed(() =>
+  pedidos.value.filter(p =>
+    ['entregado', 'cancelado'].includes(p.estado)
+  )
+)
+
+/* ===================== ACCIONES ===================== */
+
 const cambiarEstado = (pedido, estado) => {
   const label = estado === 'en_camino'
     ? 'iniciar el reparto'
@@ -87,93 +100,200 @@ const cambiarEstado = (pedido, estado) => {
     { preserveScroll: true }
   )
 }
+
+/* ===================== SCROLL A SECCIONES ===================== */
+
+const scrollToSection = id => {
+  const el = document.getElementById(id)
+  if (el) {
+    el.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }
+}
 </script>
 
 <template>
   <AuthenticatedLayout>
-    <!-- HEADER del layout (igual concepto que Vendedor / Admin) -->
+    <!-- ================= HEADER ================= -->
     <template #header>
-      <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-2">
-        <div>
-          <h2 class="font-semibold text-xl text-neutral-900 leading-tight">
-            Pedidos asignados
-          </h2>
-          <p class="text-sm text-neutral-500">
-            Entregas pendientes y en ruta para {{ repartidorName }}.
-          </p>
+      <div
+        class="relative overflow-hidden rounded-2xl bg-gradient-to-r from-sky-50 via-indigo-50 to-emerald-50 px-6 py-5 ring-1 ring-sky-100 shadow-sm"
+      >
+        <!-- blobs decorativos -->
+        <div class="pointer-events-none absolute -right-16 -top-10 h-32 w-32 rounded-full bg-sky-200/30 blur-2xl" />
+        <div class="pointer-events-none absolute -left-10 bottom-0 h-28 w-28 rounded-full bg-emerald-200/40 blur-2xl" />
+
+        <div class="relative flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+          <div class="flex items-start gap-3">
+            <div
+              class="grid h-11 w-11 place-items-center rounded-2xl bg-sky-600 text-white shadow-md shadow-sky-200 text-xl"
+            >
+              📋
+            </div>
+            <div>
+              <p class="text-xs font-semibold uppercase tracking-[0.18em] text-sky-700/80">
+                Pedidos asignados
+              </p>
+              <h2 class="mt-1 text-2xl md:text-3xl font-bold text-neutral-900 leading-tight">
+                Entregas para {{ repartidorName }}
+              </h2>
+              <p class="mt-1 text-sm text-neutral-600 max-w-xl">
+                Revisa tus pedidos por salir, en camino y el historial reciente de entregas.
+              </p>
+            </div>
+          </div>
+
+          <div class="flex flex-col items-end gap-2">
+            <div class="rounded-xl bg-white/80 px-3 py-2 text-right shadow-sm border border-sky-50">
+              <p class="text-[11px] uppercase tracking-[0.16em] text-neutral-400">
+                Hoy
+              </p>
+              <p class="text-sm font-medium text-neutral-800">
+                {{
+                  new Date().toLocaleDateString('es-MX', {
+                    weekday: 'long',
+                    day: '2-digit',
+                    month: 'short',
+                    year: 'numeric',
+                  })
+                }}
+              </p>
+            </div>
+          </div>
         </div>
       </div>
     </template>
 
-    <!-- CONTENIDO -->
-    <div class="max-w-6xl mx-auto p-6 space-y-8">
-      <!-- KPIs -->
+    <!-- =============== CONTENIDO PRINCIPAL =============== -->
+    <div
+      class="max-w-6xl mx-auto p-6 space-y-8 bg-gradient-to-b from-slate-50 via-white to-sky-50/40 rounded-3xl"
+    >
+      <!-- ================== KPIs ================== -->
       <section class="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <!-- Por salir -->
-        <div class="rounded-2xl border bg-white shadow-sm p-4 flex flex-col gap-2">
-          <p class="text-xs font-semibold text-amber-700 uppercase tracking-wide">
-            Por salir
-          </p>
-          <p class="text-3xl font-bold text-neutral-900">
+        <button
+          type="button"
+          @click="scrollToSection('sec-por-salir')"
+          class="group relative overflow-hidden rounded-2xl border border-amber-100 bg-white/95 shadow-sm p-4 flex flex-col gap-2 hover:-translate-y-1 hover:shadow-xl transition-all cursor-pointer text-left"
+        >
+          <div class="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-amber-400 via-orange-400 to-rose-400" />
+          <div class="flex items-center justify-between mt-1">
+            <div class="flex items-center gap-2">
+              <span class="inline-flex h-8 w-8 items-center justify-center rounded-xl bg-amber-50 text-amber-700">
+                ⏱️
+              </span>
+              <p class="text-[11px] font-semibold text-amber-700 uppercase tracking-[0.18em]">
+                Por salir
+              </p>
+            </div>
+            <span class="text-[11px] text-amber-500/80 group-hover:text-amber-600">
+              Ver sección →
+            </span>
+          </div>
+          <p class="text-3xl font-extrabold text-amber-700">
             {{ porSalir.length }}
           </p>
           <p class="text-xs text-neutral-500">
             Pedidos pendientes o listos que aún no han salido a reparto.
           </p>
-        </div>
+        </button>
 
         <!-- En camino -->
-        <div class="rounded-2xl border bg-white shadow-sm p-4 flex flex-col gap-2">
-          <p class="text-xs font-semibold text-sky-700 uppercase tracking-wide">
-            En camino
-          </p>
-          <p class="text-3xl font-bold text-neutral-900">
+        <button
+          type="button"
+          @click="scrollToSection('sec-en-camino')"
+          class="group relative overflow-hidden rounded-2xl border border-sky-100 bg-white/95 shadow-sm p-4 flex flex-col gap-2 hover:-translate-y-1 hover:shadow-xl transition-all cursor-pointer text-left"
+        >
+          <div class="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-sky-400 via-sky-500 to-indigo-500" />
+          <div class="flex items-center justify-between mt-1">
+            <div class="flex items-center gap-2">
+              <span class="inline-flex h-8 w-8 items-center justify-center rounded-xl bg-sky-50 text-sky-700">
+                🛵
+              </span>
+              <p class="text-[11px] font-semibold text-sky-700 uppercase tracking-[0.18em]">
+                En camino
+              </p>
+            </div>
+            <span class="text-[11px] text-sky-500/80 group-hover:text-sky-600">
+              Ver sección →
+            </span>
+          </div>
+          <p class="text-3xl font-extrabold text-sky-700">
             {{ enCamino.length }}
           </p>
           <p class="text-xs text-neutral-500">
             Entregas actualmente en ruta.
           </p>
-        </div>
+        </button>
 
-        <!-- Historial (entregados) -->
-        <div class="rounded-2xl border bg-white shadow-sm p-4 flex flex-col gap-2">
-          <p class="text-xs font-semibold text-emerald-700 uppercase tracking-wide">
-            Entregados (recientes)
-          </p>
-          <p class="text-3xl font-bold text-neutral-900">
+        <!-- Historial (entregados/cancelados) -->
+        <button
+          type="button"
+          @click="scrollToSection('sec-historial')"
+          class="group relative overflow-hidden rounded-2xl border border-emerald-100 bg-white/95 shadow-sm p-4 flex flex-col gap-2 hover:-translate-y-1 hover:shadow-xl transition-all cursor-pointer text-left"
+        >
+          <div class="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-emerald-400 via-emerald-500 to-teal-500" />
+          <div class="flex items-center justify-between mt-1">
+            <div class="flex items-center gap-2">
+              <span class="inline-flex h-8 w-8 items-center justify-center rounded-xl bg-emerald-50 text-emerald-700">
+                ✅
+              </span>
+              <p class="text-[11px] font-semibold text-emerald-700 uppercase tracking-[0.18em]">
+                Historial reciente
+              </p>
+            </div>
+            <span class="text-[11px] text-emerald-500/80 group-hover:text-emerald-600">
+              Ver sección →
+            </span>
+          </div>
+          <p class="text-3xl font-extrabold text-emerald-700">
             {{ historial.filter(p => p.estado === 'entregado').length }}
           </p>
           <p class="text-xs text-neutral-500">
-            Pedidos marcados como entregados en las últimas asignaciones.
+            Entregas marcadas como entregadas en tus últimas rutas.
           </p>
-        </div>
+        </button>
       </section>
 
-      <!-- SI NO HAY NADA -->
+      <!-- Si no tiene pedidos -->
       <section
         v-if="!pedidos.length"
-        class="border border-dashed rounded-2xl p-10 text-center bg-white/60 shadow-sm"
+        class="relative overflow-hidden border border-dashed border-sky-200 rounded-3xl p-10 text-center bg-gradient-to-r from-sky-50 via-indigo-50/60 to-emerald-50/70 shadow-sm"
       >
-        <p class="text-base font-semibold text-neutral-700">
+        <div class="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-white/80 shadow-inner text-2xl">
+          🕊️
+        </div>
+        <p class="text-base font-semibold text-neutral-800">
           No tienes entregas asignadas por ahora.
         </p>
-        <p class="mt-1 text-sm text-neutral-500 max-w-md mx-auto">
-          Cuando el administrador o vendedor te asignen pedidos, aparecerán aquí.
+        <p class="mt-1 text-sm text-neutral-600 max-w-md mx-auto">
+          Cuando el administrador o vendedor te asignen pedidos, aparecerán aquí para que organices tu ruta.
+        </p>
+        <p class="mt-3 text-[11px] text-sky-700/80 flex items-center justify-center gap-1">
+          <span class="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+          Consejo: agrupa pedidos por colonia y horario para optimizar tus recorridos.
         </p>
       </section>
 
-      <!-- CONTENIDO PRINCIPAL -->
+      <!-- Si hay pedidos -->
       <section
         v-else
         class="space-y-8"
       >
-        <!-- POR SALIR -->
-        <div>
+        <!-- ============== POR SALIR ============== -->
+        <div id="sec-por-salir">
           <div class="flex items-center justify-between mb-3">
             <div class="flex items-center gap-2">
-              <h2 class="text-sm font-semibold text-neutral-800 uppercase tracking-wide">
-                Pedidos por salir
-              </h2>
+              <span class="inline-flex h-7 w-7 items-center justify-center rounded-xl bg-amber-100 text-amber-700">
+                📍
+              </span>
+              <div>
+                <h2 class="text-xs font-semibold text-neutral-800 uppercase tracking-[0.22em]">
+                  Pedidos por salir
+                </h2>
+                <p class="text-[11px] text-neutral-400">
+                  Organiza primero los más lejanos o los de mayor total.
+                </p>
+              </div>
               <span
                 class="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold bg-amber-50 text-amber-700"
               >
@@ -184,9 +304,10 @@ const cambiarEstado = (pedido, estado) => {
 
           <div
             v-if="!porSalir.length"
-            class="rounded-2xl border bg-neutral-50/60 p-4 text-xs text-neutral-500"
+            class="rounded-2xl border border-dashed border-amber-200 bg-amber-50/40 p-4 text-xs text-amber-800/80 flex items-center gap-2"
           >
-            No hay pedidos pendientes ni listos para reparto.
+            <span class="text-lg">🗺️</span>
+            <span>No hay pedidos pendientes ni listos para reparto.</span>
           </div>
 
           <div
@@ -196,9 +317,9 @@ const cambiarEstado = (pedido, estado) => {
             <div
               v-for="pedido in porSalir"
               :key="'ps-' + pedido.id"
-              class="border rounded-2xl p-4 bg-white shadow-sm flex flex-col gap-3"
+              class="border border-slate-100 rounded-2xl p-4 bg-white/95 shadow-sm flex flex-col gap-3 hover:shadow-md hover:-translate-y-[2px] transition-all"
             >
-              <!-- Encabezado pedido -->
+              <!-- Encabezado -->
               <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-2">
                 <div>
                   <p class="text-xs text-neutral-500 uppercase tracking-wide">
@@ -291,13 +412,21 @@ const cambiarEstado = (pedido, estado) => {
           </div>
         </div>
 
-        <!-- EN CAMINO -->
-        <div>
+        <!-- ============== EN CAMINO ============== -->
+        <div id="sec-en-camino">
           <div class="flex items-center justify-between mb-3">
             <div class="flex items-center gap-2">
-              <h2 class="text-sm font-semibold text-neutral-800 uppercase tracking-wide">
-                Pedidos en camino
-              </h2>
+              <span class="inline-flex h-7 w-7 items-center justify-center rounded-xl bg-sky-100 text-sky-700">
+                🛣️
+              </span>
+              <div>
+                <h2 class="text-xs font-semibold text-neutral-800 uppercase tracking-[0.22em]">
+                  Pedidos en camino
+                </h2>
+                <p class="text-[11px] text-neutral-400">
+                  Marca como entregado tan pronto como cierres la entrega.
+                </p>
+              </div>
               <span
                 class="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold bg-sky-50 text-sky-700"
               >
@@ -308,9 +437,10 @@ const cambiarEstado = (pedido, estado) => {
 
           <div
             v-if="!enCamino.length"
-            class="rounded-2xl border bg-neutral-50/60 p-4 text-xs text-neutral-500"
+            class="rounded-2xl border border-dashed border-sky-200 bg-sky-50/40 p-4 text-xs text-sky-800/80 flex items-center gap-2"
           >
-            No tienes entregas en camino en este momento.
+            <span class="text-lg">📭</span>
+            <span>No tienes entregas en camino en este momento.</span>
           </div>
 
           <div
@@ -320,7 +450,7 @@ const cambiarEstado = (pedido, estado) => {
             <div
               v-for="pedido in enCamino"
               :key="'ec-' + pedido.id"
-              class="border rounded-2xl p-4 bg-white shadow-sm flex flex-col gap-3"
+              class="border border-slate-100 rounded-2xl p-4 bg-white/95 shadow-sm flex flex-col gap-3 hover:shadow-md hover:-translate-y-[2px] transition-all"
             >
               <!-- Encabezado -->
               <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-2">
@@ -415,13 +545,21 @@ const cambiarEstado = (pedido, estado) => {
           </div>
         </div>
 
-        <!-- HISTORIAL -->
-        <div>
+        <!-- ============== HISTORIAL ============== -->
+        <div id="sec-historial">
           <div class="flex items-center justify-between mb-3">
             <div class="flex items-center gap-2">
-              <h2 class="text-sm font-semibold text-neutral-800 uppercase tracking-wide">
-                Historial reciente
-              </h2>
+              <span class="inline-flex h-7 w-7 items-center justify-center rounded-xl bg-emerald-100 text-emerald-700">
+                📜
+              </span>
+              <div>
+                <h2 class="text-xs font-semibold text-neutral-800 uppercase tracking-[0.22em]">
+                  Historial reciente
+                </h2>
+                <p class="text-[11px] text-neutral-400">
+                  Entregas y cancelaciones registradas en tus rutas recientes.
+                </p>
+              </div>
               <span
                 class="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold bg-neutral-50 text-neutral-700"
               >
@@ -432,19 +570,20 @@ const cambiarEstado = (pedido, estado) => {
 
           <div
             v-if="!historial.length"
-            class="rounded-2xl border bg-neutral-50/60 p-4 text-xs text-neutral-500"
+            class="rounded-2xl border border-dashed border-slate-200 bg-slate-50/60 p-4 text-xs text-neutral-500 flex items-center gap-2"
           >
-            Aún no hay historial de entregas o cancelaciones recientes.
+            <span class="text-lg">🕒</span>
+            <span>Aún no hay historial de entregas o cancelaciones recientes.</span>
           </div>
 
           <div
             v-else
-            class="rounded-2xl border bg-white shadow-sm divide-y"
+            class="rounded-3xl border border-slate-100 bg-white/95 shadow-sm divide-y"
           >
             <div
               v-for="pedido in historial"
               :key="'hist-' + pedido.id"
-              class="px-4 py-3 flex items-center justify-between gap-3"
+              class="px-4 py-3 flex items-center justify-between gap-3 hover:bg-slate-50/70 transition"
             >
               <div class="flex-1 min-w-0">
                 <p class="text-sm font-medium text-neutral-900 truncate">

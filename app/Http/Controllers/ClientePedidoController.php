@@ -18,19 +18,21 @@ class ClientePedidoController extends Controller
      * Mostrar los pedidos del cliente autenticado.
      */
     public function index()
-    {
-        // Obtiene los pedidos del cliente logueado
-        $pedidos = DB::table('pedidos')
-            ->where('id_cliente', auth()->id()) // ✅ columna correcta
-            ->orderByDesc('created_at')
-            ->select('id', 'estado', 'total', 'created_at') // ✅ sintaxis corregida
-            ->get();
+{
+    // Obtiene los pedidos del cliente logueado con paginación
+    $pedidos = DB::table('pedidos')
+    ->where('id_cliente', auth()->id())
+    ->orderByDesc('created_at')
+    ->select('id', 'folio', 'estado', 'total', 'created_at') // agregamos folio
+    ->paginate(5)
+    ->withQueryString();
 
-        // Envía los pedidos a la vista de Inertia
-        return Inertia::render('Cliente/Pedidos/Index', [
-            'pedidos' => $pedidos,
-        ]);
-    }
+    // Envía los pedidos a la vista de Inertia
+    return Inertia::render('Cliente/Pedidos/Index', [
+        'pedidos' => $pedidos,
+    ]);
+}
+
  public function cancelar(Request $request, Pedido $pedido)
 {
     $userId = auth()->id();

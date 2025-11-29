@@ -1,11 +1,26 @@
 <script setup>
 import ClienteHeader from '@/Components/ClienteHeader.vue'
-import { Link, router } from '@inertiajs/vue3'   // 🆗 ahora usamos router
-import { ref } from 'vue'                        // 🆕 para estado local
+import { Link, router } from '@inertiajs/vue3'
+import { ref, computed } from 'vue'
 
 const props = defineProps({
-  pedidos: { type: Array, default: () => [] },
+  // Ahora aceptamos array o paginador para no romper si cambia el backend
+  pedidos: { type: [Array, Object], default: () => [] },
 })
+
+// Lista real de pedidos (cuando viene paginado, usa .data)
+const listaPedidos = computed(() =>
+  Array.isArray(props.pedidos)
+    ? props.pedidos
+    : (props.pedidos?.data ?? [])
+)
+
+// Links de paginación (si no viene paginado, queda vacío)
+const links = computed(() =>
+  Array.isArray(props.pedidos)
+    ? []
+    : (props.pedidos?.links ?? [])
+)
 
 const fmtFecha = (f) =>
   new Date(f).toLocaleString('es-MX', {
@@ -23,14 +38,14 @@ const estadoClase = (estado) => {
   const e = String(estado).toLowerCase()
 
   return {
-    pendiente: "bg-amber-100 text-amber-900 border-amber-300",
-    confirmado: "bg-blue-100 text-blue-800 border-blue-300",
-    preparando: "bg-blue-100 text-blue-800 border-blue-300",
-    listo: "bg-indigo-100 text-indigo-800 border-indigo-300",
-    en_camino: "bg-indigo-100 text-indigo-800 border-indigo-300",
-    entregado: "bg-emerald-100 text-emerald-800 border-emerald-300",
-    cancelado: "bg-rose-100 text-rose-800 border-rose-300",
-  }[e] || "bg-slate-100 text-slate-700 border-slate-300"
+    pendiente: 'bg-amber-100 text-amber-900 border-amber-300',
+    confirmado: 'bg-blue-100 text-blue-800 border-blue-300',
+    preparando: 'bg-blue-100 text-blue-800 border-blue-300',
+    listo: 'bg-indigo-100 text-indigo-800 border-indigo-300',
+    en_camino: 'bg-indigo-100 text-indigo-800 border-indigo-300',
+    entregado: 'bg-emerald-100 text-emerald-800 border-emerald-300',
+    cancelado: 'bg-rose-100 text-rose-800 border-rose-300',
+  }[e] || 'bg-slate-100 text-slate-700 border-slate-300'
 }
 
 // 🆕 estado del modal de cancelación
@@ -71,11 +86,12 @@ const confirmarCancelacion = () => {
     <ClienteHeader />
 
     <section class="bg-white border border-slate-200 rounded-2xl shadow-sm p-6 space-y-8">
-
       <div class="flex items-start justify-between">
         <div>
           <h1 class="text-2xl font-bold text-slate-900 flex items-center gap-2">
-            <span class="inline-flex h-9 w-9 items-center justify-center bg-amber-100 text-amber-700 rounded-full">
+            <span
+              class="inline-flex h-9 w-9 items-center justify-center bg-amber-100 text-amber-700 rounded-full"
+            >
               📦
             </span>
             Mis pedidos
@@ -86,8 +102,9 @@ const confirmarCancelacion = () => {
         </div>
       </div>
 
+      <!-- Sin pedidos -->
       <div
-        v-if="!props.pedidos.length"
+        v-if="!listaPedidos.length"
         class="rounded-xl border border-dashed border-slate-300 bg-slate-50 py-12 text-center"
       >
         <p class="text-slate-500 text-sm">Aún no tienes pedidos realizados.</p>
@@ -102,28 +119,29 @@ const confirmarCancelacion = () => {
         </div>
       </div>
 
+      <!-- Con pedidos -->
       <div v-else class="overflow-hidden rounded-xl border border-slate-200">
         <table class="min-w-full text-sm text-slate-700">
           <thead class="bg-slate-50 text-xs font-semibold text-slate-600 uppercase tracking-wide">
             <tr>
-              <th class="px-5 py-3">Folio</th>
-              <th class="px-5 py-3">Fecha</th>
-              <th class="px-5 py-3">Estado</th>
+              <th class="px-5 py-3 text-left">Folio</th>
+              <th class="px-5 py-3 text-left">Fecha</th>
+              <th class="px-5 py-3 text-left">Estado</th>
               <th class="px-5 py-3 text-right">Total</th>
-              <!-- 🔹 Nueva columna -->
               <th class="px-5 py-3 text-center">Acciones</th>
             </tr>
           </thead>
 
           <tbody class="divide-y divide-slate-200 bg-white">
             <tr
-              v-for="p in props.pedidos"
+              v-for="p in listaPedidos"
               :key="p.id"
               class="hover:bg-slate-50 transition"
             >
-              <td class="px-5 py-4 font-bold text-slate-900">
-                PED-{{ p.id }}
+             <td class="px-5 py-4 font-bold text-slate-900">
+                {{ p.folio ?? `PED-${p.id}` }}
               </td>
+
 
               <td class="px-5 py-4 text-slate-600">
                 {{ fmtFecha(p.created_at) }}
@@ -142,7 +160,6 @@ const confirmarCancelacion = () => {
                 {{ fmtMoney(p.total) }}
               </td>
 
-              <!-- 🔹 Celda con botones de acciones -->
               <td class="px-5 py-4 text-center space-x-2">
                 <!-- Ver detalles -->
                 <Link
@@ -152,29 +169,51 @@ const confirmarCancelacion = () => {
                   Ver detalles
                 </Link>
 
-                <!-- Cancelar: luego limitamos por estado, de momento igual que antes -->
+                <!-- Cancelar (solo pendiente/preparando) -->
                 <button
-  v-if="['pendiente', 'preparando'].includes(String(p.estado).toLowerCase())"
-  type="button"
-  class="inline-flex items-center gap-1 rounded-full border border-rose-200 px-4 py-1.5 text-xs font-semibold text-rose-700 hover:bg-rose-50 active:scale-95 transition"
-  @click="cancelarPedido(p)"
->
-  Cancelar
-</button>
-
+                  v-if="['pendiente', 'preparando'].includes(String(p.estado).toLowerCase())"
+                  type="button"
+                  class="inline-flex items-center gap-1 rounded-full border border-rose-200 px-4 py-1.5 text-xs font-semibold text-rose-700 hover:bg-rose-50 active:scale-95 transition"
+                  @click="cancelarPedido(p)"
+                >
+                  Cancelar
+                </button>
               </td>
-
             </tr>
           </tbody>
         </table>
 
-        <div class="bg-slate-50 text-[11px] text-slate-500 px-5 py-3 border-t border-slate-200">
+        <!-- Paginación -->
+        <nav
+          v-if="links.length > 1"
+          class="flex flex-wrap items-center justify-end gap-2 px-5 py-3 bg-white border-t border-slate-200"
+        >
+          <button
+            v-for="(link, i) in links"
+            :key="i"
+            type="button"
+            :disabled="!link.url"
+            @click="link.url && router.get(link.url)"
+            class="px-3 py-1.5 rounded-lg border text-xs font-medium"
+            :class="[
+              link.active
+                ? 'bg-rose-600 text-white border-rose-600'
+                : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50',
+              !link.url && !link.active ? 'cursor-default text-slate-400 bg-slate-50' : ''
+            ]"
+            v-html="link.label"
+          ></button>
+        </nav>
+
+        <div
+          class="bg-slate-50 text-[11px] text-slate-500 px-5 py-3 border-t border-slate-200"
+        >
           Los montos mostrados corresponden al total del pedido en el momento de confirmación.
         </div>
       </div>
     </section>
 
-    <!-- 🆕 Modal para motivo de cancelación -->
+    <!-- Modal para motivo de cancelación -->
     <div
       v-if="showCancelarModal"
       class="fixed inset-0 z-50 flex items-center justify-center bg-black/40"

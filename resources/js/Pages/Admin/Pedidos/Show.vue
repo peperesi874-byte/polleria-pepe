@@ -2,10 +2,11 @@
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue'
 import { Link, router } from '@inertiajs/vue3'
 import { ref, computed } from 'vue'
+import { route } from 'ziggy-js'   // 👈 agrega esto
 
 const props = defineProps({
-  pedido: { type: Object, required: true },          // { id, folio, estado, tipo, total, asignado_a, items[], created_at, observaciones, logs[] }
-  repartidores: { type: Array, default: () => [] }   // [{id,name}]
+  pedido: { type: Object, required: true },
+  repartidores: { type: Array, default: () => [] }
 })
 
 const processing   = ref(false)

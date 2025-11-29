@@ -1,17 +1,17 @@
+<!-- resources/js/Pages/Admin/Productos/Index.vue -->
 <script setup>
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue'
 import { Head, Link, usePage, router } from '@inertiajs/vue3'
-import { ref, watch } from 'vue'
+import { ref, watch, computed } from 'vue'
 
 const props = defineProps({
-  productos: { type: Object, required: true }, // { data, links, from, ... }
+  productos: { type: Object, required: true },
   filters:   { type: Object, default: () => ({ q: '' }) },
 })
 
 const page  = usePage()
 const flash = page.props.flash ?? {}
 
-/** Ziggy seguro */
 function safeRoute(name, params = {}, absolute = true) {
   try {
     if (typeof route !== 'undefined' && route().has(name)) {
@@ -21,7 +21,7 @@ function safeRoute(name, params = {}, absolute = true) {
   return null
 }
 
-/** Buscador con debounce */
+/* Búsqueda con debounce */
 const q = ref(props.filters.q ?? '')
 let t = null
 watch(q, (val) => {
@@ -32,7 +32,7 @@ watch(q, (val) => {
   }, 400)
 })
 
-/** Acciones */
+/* Acciones */
 const eliminar = (id) => {
   const url = safeRoute('productos.destroy', id)
   if (!url) return
@@ -40,231 +40,375 @@ const eliminar = (id) => {
   router.delete(url, { preserveScroll: true })
 }
 
-/** Formato dinero */
+/* Formato dinero */
 const money = (n) =>
   new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' }).format(n ?? 0)
 
-/** Placeholder inline */
+/* Placeholder */
 const PLACEHOLDER =
   'data:image/svg+xml;utf8,' +
   encodeURIComponent(
     `<svg xmlns="http://www.w3.org/2000/svg" width="160" height="160">
-      <rect width="100%" height="100%" rx="14" ry="14" fill="#EEF2FF"/>
-      <g fill="#6366F1" opacity="0.5">
-        <circle cx="80" cy="68" r="28"/>
-        <rect x="36" y="106" width="88" height="28" rx="8"/>
+      <rect width="100%" height="100%" rx="14" ry="14" fill="#FFEFD5"/>
+      <g fill="#FB923C" opacity="0.7">
+        <circle cx="80" cy="64" r="26"/>
+        <rect x="36" y="104" width="88" height="30" rx="10"/>
       </g>
     </svg>`
   )
 
-/** Resolver imagen */
 function imgSrc(p) {
-  const cand = p.imagenUrl ?? p.imagen_url ?? null
-  return cand || PLACEHOLDER
+  return p.imagenUrl ?? p.imagen_url ?? PLACEHOLDER
 }
 
-/** Badge de stock */
 function stockPillClass(stock) {
-  if (stock == null) return 'bg-gray-100 text-gray-600 ring-1 ring-gray-200'
+  if (stock == null) return 'bg-slate-100 text-slate-600 ring-1 ring-slate-200'
   if (Number(stock) < 10) return 'bg-rose-50 text-rose-700 ring-1 ring-rose-200'
   return 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200'
 }
+
+/* Pequeña etiqueta según stock */
+const stockLabel = (stock) => {
+  if (stock == null) return 'Sin dato'
+  const n = Number(stock)
+  if (n === 0) return 'Sin existencias'
+  if (n < 5) return 'Crítico'
+  if (n < 10) return 'Bajo'
+  if (n < 30) return 'Saludable'
+  return 'Abundante'
+}
+
+const totalProductos = computed(() => props.productos?.total ?? 0)
 </script>
 
 <template>
   <Head title="Productos" />
 
   <AuthenticatedLayout>
-    <!-- ===== Header del layout (igual a Reportes) ===== -->
+    <!-- ===== HEADER NARANJA ===== -->
     <template #header>
-  <div
-    class="rounded-2xl border border-gray-200 bg-gradient-to-r from-indigo-50 to-white px-6 py-4 shadow-sm flex items-center justify-between"
-  >
-    <!-- IZQUIERDA -->
-    <div class="flex items-center gap-4">
-      <!-- Icono -->
-      <div class="h-12 w-12 flex items-center justify-center rounded-xl bg-indigo-100 text-indigo-700">
-        <!-- icono caja / productos -->
-        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" viewBox="0 0 24 24" fill="currentColor">
-          <path d="M21 7.5V18a2.25 2.25 0 0 1-2.25 2.25H5.25A2.25 2.25 0 0 1 3 18V7.5l9-4.5 9 4.5zM12 5.19 6.75 7.8v2.7L12 7.88l5.25 2.62V7.8L12 5.19z"/>
-        </svg>
-      </div>
+      <div class="pt-4 pb-6">
+        <div
+          class="relative mx-auto max-w-7xl overflow-hidden rounded-[32px] bg-gradient-to-r from-orange-400 via-orange-400 to-rose-500 px-8 py-7 text-white shadow-[0_24px_60px_rgba(249,115,22,0.45)]"
+        >
+          <!-- decor -->
+          <div class="pointer-events-none absolute -left-20 -top-24 h-40 w-40 rounded-full bg-white/20 blur-3xl" />
+          <div class="pointer-events-none absolute -right-10 bottom-0 h-40 w-44 rounded-full bg-black/20 blur-3xl" />
 
-      <!-- Títulos -->
-      <div>
-        <h2 class="text-2xl font-semibold text-gray-900">Productos</h2>
-        <p class="text-sm text-gray-500">
-          Administra el catálogo y el estado del inventario.
-        </p>
-      </div>
-    </div>
+          <div class="relative flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+            <!-- Izquierda -->
+            <div class="space-y-3">
+              <div
+                class="inline-flex items-center gap-2 rounded-full bg-black/20 px-3 py-1 text-[11px] font-medium text-white/95 backdrop-blur"
+              >
+                <span class="text-lg">📦</span>
+                <span>Catálogo — Pollería Pepe</span>
+              </div>
 
-    <!-- DERECHA -->
-    <div class="flex items-center gap-2">
-      <!-- Volver -->
-      <Link
-        v-if="safeRoute('admin.dashboard')"
-        :href="safeRoute('admin.dashboard')"
-        class="text-sm text-indigo-600 hover:underline"
-      >
-        ← Volver al panel
-      </Link>
+              <h1 class="text-3xl font-extrabold tracking-tight">Gestión de productos</h1>
+              <p class="text-sm opacity-90">
+                Administra tu catálogo, ajusta precios, stock y organiza todo tu inventario.
+              </p>
 
-      <!-- Nuevo producto -->
-      <Link
-        v-if="safeRoute('productos.create')"
-        :href="safeRoute('productos.create')"
-        class="inline-flex items-center gap-2 rounded-xl bg-indigo-600 px-4 py-2.5 text-white shadow-sm transition hover:bg-indigo-700"
-      >
-        <span class="-ml-1 text-lg">＋</span>
-        Nuevo producto
-      </Link>
-    </div>
-  </div>
-</template>
+              <div class="flex flex-wrap gap-2 text-[11px]">
+                <span
+                  class="inline-flex items-center gap-1 rounded-full bg-white/95 px-3 py-1 font-semibold text-amber-900 shadow-sm"
+                >
+                  {{ totalProductos }} productos totales
+                </span>
+                <span class="inline-flex items-center gap-1 rounded-full bg-black/20 px-3 py-1">
+                  Gestión rápida en un solo módulo
+                </span>
+              </div>
+            </div>
 
+            <!-- Derecha -->
+            <div class="flex flex-col items-end gap-2">
+              <Link
+                :href="route('productos.create')"
+                class="inline-flex items-center gap-2 rounded-2xl bg-white/95 px-4 py-2 text-xs font-semibold text-amber-700 shadow-sm hover:bg-amber-50"
+              >
+                ➕ Nuevo producto
+              </Link>
 
-    <!-- ===== Contenido ===== -->
-    <div class="mx-auto max-w-7xl p-6">
-      <!-- Flash -->
-      <div
-        v-if="flash?.success"
-        class="mb-5 rounded-xl border border-emerald-200 bg-emerald-50/70 px-4 py-3 text-emerald-800"
-      >
-        {{ flash.success }}
-      </div>
-
-      <!-- Filtros -->
-      <div class="mb-6">
-        <div class="relative w-full md:w-[28rem]">
-          <input
-            v-model="q"
-            type="text"
-            placeholder="Buscar por nombre…"
-            class="w-full rounded-xl border border-gray-300/80 bg-white px-4 py-2.5 pr-10 text-sm shadow-sm outline-none ring-indigo-200 focus:border-indigo-300 focus:ring-2"
-          />
-          <span class="pointer-events-none absolute inset-y-0 right-3 flex items-center text-gray-400">🔍</span>
+              <Link
+                :href="route('admin.dashboard')"
+                class="inline-flex items-center gap-2 rounded-2xl bg-black/20 px-3 py-2 text-xs font-medium text-white hover:bg-black/30"
+              >
+                ← Volver al panel
+              </Link>
+            </div>
+          </div>
         </div>
       </div>
+    </template>
 
-      <!-- Tabla -->
-      <div class="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
-        <table class="w-full border-collapse text-sm">
-          <thead class="bg-gray-50 text-gray-600">
-            <tr>
-              <th class="px-4 py-3 text-left w-[56px]">#</th>
-              <th class="px-4 py-3 text-left w-[84px]">Imagen</th>
-              <th class="px-4 py-3 text-left">Nombre</th>
-              <th class="px-4 py-3 text-left">Descripción</th>
-              <th class="px-4 py-3 text-left">Precio</th>
-              <th class="px-4 py-3 text-left">Stock</th>
-              <th class="px-4 py-3 text-left">Activo</th>
-              <th class="px-4 py-3 text-right w-[180px]">Acciones</th>
-            </tr>
-          </thead>
+    <!-- ===== CONTENIDO ===== -->
+    <div class="bg-gradient-to-b from-slate-50 via-amber-50/20 to-slate-50">
+      <div class="mx-auto max-w-7xl px-4 py-6 space-y-6 lg:px-6">
+        <!-- Flash -->
+        <div
+          v-if="flash?.success"
+          class="flex items-center gap-2 rounded-xl border border-emerald-300 bg-emerald-50 px-4 py-2.5 text-sm text-emerald-900 shadow-sm"
+        >
+          <span>✅</span>
+          <span>{{ flash.success }}</span>
+        </div>
 
-          <tbody>
-            <tr
-              v-for="(p, index) in productos.data"
-              :key="p.id"
-              class="border-t border-gray-100 odd:bg-white even:bg-gray-50/30 hover:bg-gray-50/80"
-            >
-              <td class="px-4 py-3 font-medium text-gray-500">
-                {{ (productos.from ?? 1) + index }}
-              </td>
+        <!-- Filtros / buscador -->
+        <div
+          class="flex flex-col gap-3 rounded-3xl bg-white/95 px-4 py-4 shadow-sm ring-1 ring-amber-200/80 md:flex-row md:items-center md:justify-between"
+        >
+          <div>
+            <p class="flex items-center gap-2 text-sm font-semibold text-slate-900">
+              <span class="text-lg">🔎</span>
+              Catálogo
+            </p>
+            <p class="text-xs text-slate-500">
+              Busca por nombre para ubicar rápido cortes o presentaciones.
+            </p>
+          </div>
 
-              <!-- Miniatura -->
-              <td class="px-4 py-3">
-                <img
-                  :src="imgSrc(p)"
-                  alt="Producto"
-                  class="h-12 w-12 rounded-lg border border-gray-200 bg-white object-cover shadow-sm"
-                  @error="$event.target.src = PLACEHOLDER"
-                />
-              </td>
+          <div class="flex w-full flex-col items-stretch gap-2 md:w-auto md:flex-row md:items-center">
+            <div class="relative md:w-[20rem]">
+              <input
+                v-model="q"
+                type="text"
+                placeholder="Buscar por nombre…"
+                class="w-full rounded-2xl border border-amber-200 bg-amber-50/60 px-4 py-2 pr-9 text-sm shadow-inner shadow-amber-100 focus:border-amber-400 focus:outline-none focus:ring-2 focus:ring-amber-300/80"
+              />
+              <span class="absolute inset-y-0 right-3 flex items-center text-amber-400">🔍</span>
+            </div>
+          </div>
+        </div>
 
-              <td class="px-4 py-3 font-medium text-gray-900">
-                {{ p.nombre }}
-                <span
-                  v-if="Number(p.stock) < 10"
-                  class="ml-2 align-middle rounded-full bg-rose-50 px-2 py-0.5 text-[11px] font-semibold text-rose-700 ring-1 ring-rose-200"
+        <!-- ===== TABLA MEGA DISEÑADA ===== -->
+        <div class="overflow-hidden rounded-[28px] bg-white/95 shadow-lg shadow-amber-100/80 ring-1 ring-amber-100">
+          <!-- Encabezado de lista -->
+          <div
+            class="flex items-center justify-between border-b border-amber-100/80 bg-gradient-to-r from-amber-50 via-amber-50/80 to-white px-5 py-3"
+          >
+            <div class="flex items-center gap-3">
+              <span
+                class="flex h-9 w-9 items-center justify-center rounded-2xl bg-amber-500 text-sm text-white shadow-sm shadow-amber-300/80"
+              >
+                🧺
+              </span>
+              <div>
+                <p class="text-sm font-semibold text-slate-900">Listado de productos</p>
+                <p class="text-[11px] text-amber-900/80">
+                  Vista tipo tarjetas dentro de la tabla para entender mejor cada ítem.
+                </p>
+              </div>
+            </div>
+            <p class="hidden text-[11px] text-amber-900/80 md:block">
+              Ordena, edita o elimina desde un solo lugar.
+            </p>
+          </div>
+
+          <!-- Tabla -->
+          <div class="overflow-x-auto px-3 py-3">
+            <table class="min-w-full border-separate border-spacing-y-3 text-sm">
+              <!-- Thead oscuro, pegajoso -->
+              <thead>
+                <tr
+                  class="sticky top-0 z-10 bg-gradient-to-r from-slate-900 via-slate-900 to-slate-800 text-[11px] uppercase tracking-wide text-slate-100"
                 >
-                  Stock bajo
-                </span>
-              </td>
+                  <th class="px-4 py-3 text-left font-semibold rounded-tl-2xl">
+                    #
+                  </th>
+                  <th class="px-4 py-3 text-left font-semibold">
+                    Producto
+                    <span class="block text-[10px] font-normal text-slate-300">
+                      Nombre, imagen y descripción corta
+                    </span>
+                  </th>
+                  <th class="px-4 py-3 text-left font-semibold">
+                    Categoría
+                    <span class="block text-[10px] font-normal text-slate-300">
+                      Agrupación dentro del catálogo
+                    </span>
+                  </th>
+                  <th class="px-4 py-3 text-right font-semibold">
+                    Precio
+                    <span class="block text-[10px] font-normal text-slate-300">
+                      Monto actual de venta
+                    </span>
+                  </th>
+                  <th class="px-4 py-3 text-center font-semibold">
+                    Stock
+                    <span class="block text-[10px] font-normal text-slate-300">
+                      Cantidad y estado
+                    </span>
+                  </th>
+                  <th class="px-4 py-3 text-center font-semibold">
+                    Activo
+                  </th>
+                  <th class="px-4 py-3 text-right font-semibold rounded-tr-2xl">
+                    Acciones
+                  </th>
+                </tr>
+              </thead>
 
-              <td class="px-4 py-3 text-gray-600 max-w-[28ch] truncate" :title="p.descripcion || 'Sin descripción'">
-                {{ p.descripcion || '—' }}
-              </td>
-
-              <td class="px-4 py-3 font-semibold text-gray-800">
-                {{ money(p.precio) }}
-              </td>
-
-              <td class="px-4 py-3">
-                <span class="rounded-full px-2.5 py-1 text-xs font-semibold" :class="stockPillClass(p.stock)">
-                  {{ p.stock ?? '—' }}
-                </span>
-              </td>
-
-              <td class="px-4 py-3">
-                <span
-                  :class="[
-                    'rounded-full px-2.5 py-1 text-xs font-semibold ring-1',
-                    p.activo
-                      ? 'bg-emerald-50 text-emerald-700 ring-emerald-200'
-                      : 'bg-rose-50 text-rose-700 ring-rose-200',
-                  ]"
+              <tbody>
+                <!-- Fila / tarjeta -->
+                <tr
+                  v-for="(p, index) in productos.data"
+                  :key="p.id"
+                  class="group align-middle text-[13px] text-slate-800"
                 >
-                  {{ p.activo ? 'Sí' : 'No' }}
-                </span>
-              </td>
+                  <td class="px-0 py-0" colspan="7">
+                    <!-- Card completa dentro de una celda para poder redondear -->
+                    <div
+                      class="flex items-stretch gap-3 rounded-3xl border border-amber-100/80 bg-white/95 px-4 py-3 shadow-[0_4px_14px_rgba(15,23,42,0.06)] ring-1 ring-amber-50/80 transition-all group-hover:-translate-y-0.5 group-hover:border-amber-300 group-hover:shadow-[0_10px_30px_rgba(249,115,22,0.25)]"
+                    >
+                      <!-- Barra lateral + # -->
+                      <div class="flex flex-col items-center justify-between border-r border-dashed border-amber-100 pr-3 text-xs text-slate-500">
+                        <div class="flex items-center gap-2">
+                          <span
+                            class="h-8 w-1.5 rounded-full bg-gradient-to-b from-amber-400 via-orange-400 to-rose-400"
+                          />
+                          <span class="font-semibold text-slate-700">
+                            #{{ (productos.from ?? 1) + index }}
+                          </span>
+                        </div>
+                        <span class="hidden rounded-full bg-amber-50 px-2 py-0.5 text-[10px] uppercase tracking-wide text-amber-700 md:inline-flex">
+                          ID: {{ p.id }}
+                        </span>
+                      </div>
 
-              <td class="px-4 py-3 text-right">
-                <div class="inline-flex items-center gap-2">
-                  <Link
-                    v-if="safeRoute('productos.edit', p.id)"
-                    :href="safeRoute('productos.edit', p.id)"
-                    class="inline-flex items-center gap-1 rounded-lg border border-indigo-200 px-3 py-1.5 text-indigo-700 hover:bg-indigo-50"
-                  >
-                    ✏️ <span class="text-sm font-medium">Editar</span>
-                  </Link>
+                      <!-- Producto (imagen + nombre + descripción) -->
+                      <div class="flex flex-1 items-center gap-3">
+                        <div
+                          class="relative h-12 w-12 overflow-hidden rounded-xl border border-amber-100 bg-slate-100 shadow-sm"
+                        >
+                          <img
+                            :src="imgSrc(p)"
+                            class="h-full w-full object-cover"
+                            @error="$event.target.src = PLACEHOLDER"
+                          />
+                          <span
+                            class="absolute -left-1 -top-1 rounded-br-xl rounded-tl-xl bg-black/40 px-1.5 py-0.5 text-[10px] font-semibold text-amber-100 backdrop-blur"
+                          >
+                            {{ p.activo ? 'Activo' : 'Inactivo' }}
+                          </span>
+                        </div>
+                        <div class="min-w-0">
+                          <p class="truncate text-[14px] font-semibold text-slate-900">
+                            {{ p.nombre }}
+                          </p>
+                          <p class="mt-0.5 line-clamp-2 text-[11px] text-slate-500">
+                            {{ p.descripcion || 'Sin descripción' }}
+                          </p>
+                        </div>
+                      </div>
 
-                  <button
-                    v-if="safeRoute('productos.destroy', p.id)"
-                    @click="eliminar(p.id)"
-                    class="inline-flex items-center gap-1 rounded-lg border border-rose-200 px-3 py-1.5 text-rose-700 hover:bg-rose-50"
-                  >
-                    🗑 <span class="text-sm font-medium">Eliminar</span>
-                  </button>
-                </div>
-              </td>
-            </tr>
+                      <!-- Categoría -->
+                      <div class="flex w-40 flex-col justify-center gap-1">
+                        <span
+                          v-if="p.categoria_nombre"
+                          class="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2.5 py-0.5 text-[11px] font-medium text-amber-900 ring-1 ring-amber-100"
+                        >
+                          🏷 {{ p.categoria_nombre }}
+                        </span>
+                        <span v-else class="text-[11px] text-slate-400">Sin categoría</span>
 
-            <tr v-if="productos.data.length === 0">
-              <td colspan="8" class="px-4 py-10 text-center text-gray-500">
-                No hay productos disponibles.
-              </td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
+                        <span class="text-[10px] text-slate-400">
+                          Código: {{ p.codigo ?? '—' }}
+                        </span>
+                      </div>
 
-      <!-- Paginación -->
-      <div class="mt-6 flex justify-end gap-2">
-        <Link
-          v-for="(lnk, i) in productos.links"
-          :key="i"
-          :href="lnk.url || '#'"
-          v-html="lnk.label"
-          :class="[
-            'min-w-9 select-none rounded-lg border px-3 py-1.5 text-center text-sm transition',
-            lnk.active
-              ? 'border-indigo-600 bg-indigo-600 text-white'
-              : 'border-gray-300 bg-white text-gray-700 hover:bg-indigo-50',
-            !lnk.url && 'pointer-events-none opacity-40',
-          ]"
-        />
+                      <!-- Precio -->
+                      <div class="flex w-32 flex-col items-end justify-center gap-1 text-right">
+                        <span
+                          class="text-[15px] font-extrabold"
+                          :class="Number(p.stock) < 10 ? 'text-rose-700' : 'text-emerald-700'"
+                        >
+                          {{ money(p.precio) }}
+                        </span>
+                        <span class="text-[10px] uppercase tracking-wide text-slate-400">
+                          Precio de venta
+                        </span>
+                      </div>
+
+                      <!-- Stock -->
+                      <div class="flex w-40 flex-col items-center justify-center gap-1 text-center">
+                        <span
+                          class="inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[11px] font-semibold"
+                          :class="stockPillClass(p.stock)"
+                        >
+                          📦
+                          <span>{{ p.stock ?? '—' }}</span>
+                        </span>
+                        <span class="text-[10px] text-slate-400">
+                          {{ stockLabel(p.stock) }}
+                        </span>
+                      </div>
+
+                      <!-- Activo -->
+                      <div class="flex w-24 flex-col items-center justify-center gap-1">
+                        <span
+                          class="inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[11px] font-semibold ring-1"
+                          :class="p.activo
+                            ? 'bg-emerald-50 text-emerald-700 ring-emerald-200'
+                            : 'bg-rose-50 text-rose-700 ring-rose-200'"
+                        >
+                          <span
+                            class="h-1.5 w-1.5 rounded-full"
+                            :class="p.activo ? 'bg-emerald-500' : 'bg-rose-500'"
+                          />
+                          {{ p.activo ? 'Sí' : 'No' }}
+                        </span>
+                        <span class="text-[10px] text-slate-400">
+                          Visible en catálogo
+                        </span>
+                      </div>
+
+                      <!-- Acciones -->
+                      <div class="flex w-40 items-center justify-end gap-1">
+                        <Link
+                          :href="safeRoute('productos.edit', p.id)"
+                          class="inline-flex items-center gap-1 rounded-full border border-amber-200 bg-white px-3 py-1.5 text-[11px] font-semibold text-amber-700 shadow-sm hover:bg-amber-50"
+                        >
+                          ✏️ Editar
+                        </Link>
+                        <button
+                          @click="eliminar(p.id)"
+                          class="inline-flex items-center gap-1 rounded-full border border-rose-200 bg-white px-3 py-1.5 text-[11px] font-semibold text-rose-700 shadow-sm hover:bg-rose-50"
+                        >
+                          🗑 Eliminar
+                        </button>
+                      </div>
+                    </div>
+                  </td>
+                </tr>
+
+                <tr v-if="productos.data.length === 0">
+                  <td colspan="7" class="px-3 py-8 text-center text-sm text-slate-500">
+                    No hay productos disponibles.
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Paginación -->
+        <div class="flex justify-end gap-2">
+          <Link
+            v-for="(lnk, i) in productos.links"
+            :key="i"
+            :href="lnk.url || '#'"
+            v-html="lnk.label"
+            :class="[
+              'min-w-9 select-none rounded-full border px-3 py-1.5 text-center text-xs font-semibold transition',
+              lnk.active
+                ? 'border-amber-600 bg-amber-600 text-white shadow-sm shadow-amber-300/80'
+                : 'border-amber-100 bg-white text-slate-700 hover:bg-amber-50',
+              !lnk.url && 'pointer-events-none opacity-40',
+            ]"
+          />
+        </div>
       </div>
     </div>
   </AuthenticatedLayout>

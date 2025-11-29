@@ -2,14 +2,24 @@
   // Puedes poner tu logo en public/logo.png (opcional)
   $logoPath = public_path('logo.png');
   $hasLogo  = file_exists($logoPath);
-  $total    = count($rows ?? []);
-  $bajoMin  = collect($rows ?? [])->filter(fn($r) => $r->stock_actual <= $r->stock_minimo)->count();
+
+  $rows     = $rows ?? [];
+
+  // Métricas básicas
+  $total    = count($rows);
+  $bajoMin  = collect($rows)->filter(fn($r) => $r->stock_actual <= $r->stock_minimo)->count();
+
+  // Métricas extra para que se vea más pro
+  $stockTotal = collect($rows)->sum(fn($r) => (int) ($r->stock_actual ?? 0));
+  $valorTotal = collect($rows)->sum(fn($r) => (float) ($r->stock_actual * $r->precio));
+
+  $fechaReporte = $fecha ?? now()->format('d/m/Y H:i');
 @endphp
 <!doctype html>
 <html lang="es">
 <head>
   <meta charset="utf-8">
-  <title>{{ $titulo ?? 'Reporte' }}</title>
+  <title>{{ $titulo ?? 'Reporte de inventario' }}</title>
   <style>
     /* Márgenes del documento */
     @page { margin: 28px 28px 36px 28px; }
@@ -53,15 +63,20 @@
       margin-right: 6px;
       margin-bottom: 6px;
       font-size: 11px;
+      min-width: 130px;
     }
-    .stat-strong { font-weight: 700; color: #111827; }
+    .stat-label { font-size: 10px; text-transform: uppercase; color: #6b7280; }
+    .stat-strong { font-weight: 700; color: #111827; display: block; margin-top: 2px; }
 
     /* Tabla */
     table { width: 100%; border-collapse: collapse; }
     th, td { border: 1px solid #e5e7eb; padding: 7px 8px; }
     thead th {
-      background: #eef2ff; color: #1e40af; text-transform: uppercase;
-      font-size: 11px; letter-spacing: .3px;
+      background: #eef2ff;
+      color: #1e40af;
+      text-transform: uppercase;
+      font-size: 11px;
+      letter-spacing: .3px;
     }
     tbody tr:nth-child(odd) { background: #fcfcff; }
     .right { text-align: right; }
@@ -69,8 +84,11 @@
 
     /* Chips / badges */
     .chip {
-      display: inline-block; padding: 2px 6px; border-radius: 999px;
-      font-size: 10px; font-weight: 700;
+      display: inline-block;
+      padding: 2px 6px;
+      border-radius: 999px;
+      font-size: 10px;
+      font-weight: 700;
     }
     .chip-low { color: #b91c1c; background: #fee2e2; border: 1px solid #fecaca; }
     .chip-ok  { color: #065f46; background: #d1fae5; border: 1px solid #a7f3d0; }
@@ -79,7 +97,10 @@
     .footer {
       position: fixed;
       left: 0; right: 0; bottom: -10px;
-      height: 20px; text-align: right; font-size: 10px; color: #6b7280;
+      height: 20px;
+      text-align: right;
+      font-size: 10px;
+      color: #6b7280;
     }
   </style>
 </head>
@@ -92,12 +113,14 @@
         <img src="{{ $logoPath }}" alt="Logo" height="36" style="vertical-align:middle;margin-right:8px;">
       @endif
       <div style="display:inline-block;vertical-align:middle;">
-        <h1 class="brand-title">Reporte de Inventario</h1>
+        <h1 class="brand-title">
+          {{ $titulo ?? 'Reporte de Inventario' }}
+        </h1>
         <p class="brand-sub">Sistema Web • Pollería Pepe</p>
       </div>
     </div>
     <div class="brand-right">
-      <div><strong>Generado:</strong> {{ $fecha ?? now()->format('d/m/Y H:i') }}</div>
+      <div><strong>Generado:</strong> {{ $fechaReporte }}</div>
       @isset($filtrosActivos)
         <div class="muted">{{ $filtrosActivos }}</div>
       @endisset
@@ -107,9 +130,22 @@
 
   {{-- Resumen --}}
   <div class="stats">
-    <div class="stat"><span class="stat-strong">Productos:</span> {{ $total }}</div>
-    <div class="stat"><span class="stat-strong">Bajo mínimo:</span> {{ $bajoMin }}</div>
-    <div class="stat"><span class="stat-strong">Fecha:</span> {{ $fecha }}</div>
+    <div class="stat">
+      <span class="stat-label">Productos</span>
+      <span class="stat-strong">{{ $total }}</span>
+    </div>
+    <div class="stat">
+      <span class="stat-label">Bajo mínimo</span>
+      <span class="stat-strong">{{ $bajoMin }}</span>
+    </div>
+    <div class="stat">
+      <span class="stat-label">Stock total</span>
+      <span class="stat-strong">{{ $stockTotal }}</span>
+    </div>
+    <div class="stat">
+      <span class="stat-label">Valor estimado</span>
+      <span class="stat-strong">${{ number_format($valorTotal, 2) }}</span>
+    </div>
   </div>
 
   {{-- Tabla --}}

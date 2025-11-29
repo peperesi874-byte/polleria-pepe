@@ -81,10 +81,14 @@ const goRepartidorPedidos = () => {
 const isCurrent = (name) => {
   try { return !!route().current(name) } catch { return false }
 }
+
+/* ✅ Sólo cambiamos estos estilos para que los tabs se vean más bonitos */
 const navLinkClasses = (active) => [
-  'px-3 py-2 rounded-lg text-sm font-medium transition',
-  active ? 'bg-indigo-100 text-indigo-800'
-         : 'text-gray-700 hover:bg-gray-100 hover:text-gray-900'
+  'inline-flex items-center px-4 py-2 rounded-full text-sm font-medium tracking-tight',
+  'transition-all duration-150',
+  active
+    ? 'bg-indigo-50 text-indigo-700 shadow-sm ring-1 ring-indigo-100'
+    : 'text-gray-700 hover:text-indigo-700 hover:bg-indigo-50/70 hover:ring-1 hover:ring-indigo-100'
 ].join(' ')
 
 /* Inicio según rol (para el LOGO) */
@@ -116,9 +120,13 @@ const homeRoute = computed(() => {
             <!-- LOGO -->
             <Link :href="homeRoute" class="flex items-center gap-2">
               <span
-                class="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-indigo-600 text-white font-bold"
+                class="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-white overflow-hidden ring-1 ring-indigo-100"
               >
-                PP
+                <img
+                  src="/logo.jpg"
+                  alt="Pollería Pepe"
+                  class="h-9 w-9 object-cover"
+                />
               </span>
             </Link>
 
