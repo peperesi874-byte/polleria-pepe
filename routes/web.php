@@ -41,6 +41,7 @@ use App\Http\Controllers\HomeRedirectController;
 
 
 
+
 // Perfil (Auth Breeze)
 use App\Http\Controllers\ProfileController;
 
@@ -408,6 +409,12 @@ Route::prefix('cliente')
             '/notificaciones/leer-todas',
             [\App\Http\Controllers\Cliente\NotificacionesController::class, 'markAllAsRead']
         )->name('notificaciones.leer_todas');
+
+            Route::post('/cliente/pedidos/{pedido}/cancelar', [ClientePedidoController::class, 'cancelar'])
+    ->name('cliente.pedidos.cancelar');
+
+            Route::post('/pedidos/{pedido}/cancelar', [ClientePedidoController::class, 'cancelar'])
+    ->name('pedidos.cancelar');
 
 
 

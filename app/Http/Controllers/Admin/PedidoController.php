@@ -176,6 +176,7 @@ class PedidoController extends Controller
                 'tipo'          => $pedido->tipo_entrega,
                 'total'         => (float) $pedido->total,
                 'observaciones' => $pedido->observaciones,
+                'motivo_cancelacion' => $pedido->motivo_cancelacion,
                 'created_at'    => $pedido->created_at?->format('Y-m-d H:i'),
                 'asignado_a'    => $pedido->asignado_a,
 

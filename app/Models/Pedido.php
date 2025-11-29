@@ -14,7 +14,7 @@ class Pedido extends Model
     protected $fillable = [
         'folio',
         'id_cliente',
-        'direccion_id',      // 👈 IMPORTANTE: permitir guardar la dirección
+        'direccion_id',      //  IMPORTANTE: permitir guardar la dirección
         'tipo_entrega',      // mostrador | domicilio
         'estado',            // pendiente, preparando, listo, en_camino, entregado, cancelado
         'observaciones',

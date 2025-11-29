@@ -1,15 +1,24 @@
 <script setup>
-import { usePage, Link } from '@inertiajs/vue3'
+import { Link } from '@inertiajs/vue3'
+import { computed } from 'vue'
 
-const page = usePage()
-const pedido = page.props.pedido ?? {}
-const direccion = page.props.direccion ?? null
-const items = page.props.items ?? []
+// ✅ Recibimos solo el objeto pedido desde Inertia
+const props = defineProps({
+  pedido: {
+    type: Object,
+    default: () => ({}),
+  },
+})
+
+// 🧠 Helpers reactivas
+const pedido = computed(() => props.pedido ?? {})
+const direccion = computed(() => pedido.value.direccion ?? null)
+const items = computed(() => pedido.value.items ?? [])
+const total = computed(() => Number(pedido.value.total ?? 0))
 </script>
 
 <template>
   <div class="max-w-5xl mx-auto py-10 px-4 space-y-8">
-
     <!-- Mensaje -->
     <div class="p-4 bg-green-100 border border-green-300 text-green-800 rounded-lg">
       ✔ Tu pedido se registró correctamente.
@@ -23,9 +32,17 @@ const items = page.props.items ?? []
       </div>
       <div>
         <div><strong>Fecha y hora:</strong> {{ pedido.created_at }}</div>
-        <div><strong>Tipo de entrega:</strong> 
-          {{ pedido.tipo_entrega === 'domicilio' ? 'Domicilio' : 
-             pedido.tipo_entrega === 'mostrador' ? 'Mostrador' : 'Recoger' }}
+        <div>
+          <strong>Tipo de entrega:</strong>
+          <span>
+            {{
+              pedido.tipo_entrega === 'domicilio'
+                ? 'Domicilio'
+                : pedido.tipo_entrega === 'mostrador'
+                  ? 'Mostrador'
+                  : 'Recoger'
+            }}
+          </span>
         </div>
       </div>
     </div>
@@ -46,16 +63,22 @@ const items = page.props.items ?? []
 
       <!-- Lista de productos -->
       <div v-if="items.length" class="space-y-3">
-        <div v-for="(it, i) in items" :key="i"
-             class="flex justify-between border-b pb-2">
+        <div
+          v-for="(it, i) in items"
+          :key="i"
+          class="flex justify-between border-b pb-2"
+        >
           <div>
-            <div class="font-medium">{{ it.nombre }}</div>
+            <div class="font-medium">
+              {{ it.nombre }}
+            </div>
             <div class="text-sm text-gray-500">
-              {{ it.cantidad }} × ${{ it.precio.toFixed(2) }}
+              {{ Number(it.cantidad ?? 0) }} × $
+              {{ Number(it.precio ?? 0).toFixed(2) }}
             </div>
           </div>
           <div class="font-semibold">
-            ${{ it.subtotal.toFixed(2) }}
+            ${{ Number(it.subtotal ?? 0).toFixed(2) }}
           </div>
         </div>
       </div>
@@ -66,7 +89,7 @@ const items = page.props.items ?? []
       </div>
 
       <div class="text-right mt-4 text-lg font-bold">
-        Total: ${{ pedido.total.toFixed(2) }}
+        Total: ${{ total.toFixed(2) }}
       </div>
     </div>
 
@@ -75,10 +98,12 @@ const items = page.props.items ?? []
       <Link :href="`/cliente/pedidos/${pedido.id}`" class="px-4 py-2 border rounded">
         Ver pedido
       </Link>
-      <Link href="/cliente/pedidos" class="px-4 py-2 bg-red-500 text-white rounded">
+      <Link
+        href="/cliente/pedidos"
+        class="px-4 py-2 bg-red-500 text-white rounded"
+      >
         Mis pedidos
       </Link>
     </div>
-
   </div>
 </template>

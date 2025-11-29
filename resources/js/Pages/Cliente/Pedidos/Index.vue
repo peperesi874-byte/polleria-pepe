@@ -1,6 +1,7 @@
 <script setup>
 import ClienteHeader from '@/Components/ClienteHeader.vue'
-import { Link } from '@inertiajs/vue3'
+import { Link, router } from '@inertiajs/vue3'   // 🆗 ahora usamos router
+import { ref } from 'vue'                        // 🆕 para estado local
 
 const props = defineProps({
   pedidos: { type: Array, default: () => [] },
@@ -30,6 +31,38 @@ const estadoClase = (estado) => {
     entregado: "bg-emerald-100 text-emerald-800 border-emerald-300",
     cancelado: "bg-rose-100 text-rose-800 border-rose-300",
   }[e] || "bg-slate-100 text-slate-700 border-slate-300"
+}
+
+// 🆕 estado del modal de cancelación
+const showCancelarModal = ref(false)
+const pedidoSeleccionado = ref(null)
+const motivo = ref('')
+const enviando = ref(false)
+
+// 🆕 ahora solo abre el modal y guarda el pedido
+const cancelarPedido = (p) => {
+  pedidoSeleccionado.value = p
+  motivo.value = ''
+  showCancelarModal.value = true
+}
+
+// 🆕 esta sí manda la petición al backend
+const confirmarCancelacion = () => {
+  if (!pedidoSeleccionado.value) return
+
+  enviando.value = true
+
+  router.post(
+    `/cliente/pedidos/${pedidoSeleccionado.value.id}/cancelar`,
+    { motivo: motivo.value },
+    {
+      preserveScroll: true,
+      onFinish: () => {
+        enviando.value = false
+        showCancelarModal.value = false
+      },
+    }
+  )
 }
 </script>
 
@@ -109,15 +142,27 @@ const estadoClase = (estado) => {
                 {{ fmtMoney(p.total) }}
               </td>
 
-              <!-- 🔹 Celda con botón "Ver detalles" -->
-              <td class="px-5 py-4 text-center">
-  <Link
-    :href="route('cliente.checkout.confirmacion', p.id)"
-    class="inline-flex items-center gap-1 rounded-full bg-indigo-600 px-4 py-1.5 text-xs font-semibold text-white hover:bg-indigo-700 active:scale-95 transition"
-  >
-    Ver detalles
-  </Link>
-</td>
+              <!-- 🔹 Celda con botones de acciones -->
+              <td class="px-5 py-4 text-center space-x-2">
+                <!-- Ver detalles -->
+                <Link
+                  :href="route('cliente.checkout.confirmacion', p.id)"
+                  class="inline-flex items-center gap-1 rounded-full bg-indigo-600 px-4 py-1.5 text-xs font-semibold text-white hover:bg-indigo-700 active:scale-95 transition"
+                >
+                  Ver detalles
+                </Link>
+
+                <!-- Cancelar: luego limitamos por estado, de momento igual que antes -->
+                <button
+  v-if="['pendiente', 'preparando'].includes(String(p.estado).toLowerCase())"
+  type="button"
+  class="inline-flex items-center gap-1 rounded-full border border-rose-200 px-4 py-1.5 text-xs font-semibold text-rose-700 hover:bg-rose-50 active:scale-95 transition"
+  @click="cancelarPedido(p)"
+>
+  Cancelar
+</button>
+
+              </td>
 
             </tr>
           </tbody>
@@ -128,5 +173,51 @@ const estadoClase = (estado) => {
         </div>
       </div>
     </section>
+
+    <!-- 🆕 Modal para motivo de cancelación -->
+    <div
+      v-if="showCancelarModal"
+      class="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
+    >
+      <div class="bg-white rounded-2xl shadow-xl max-w-md w-full p-6 space-y-4">
+        <h2 class="text-lg font-semibold text-slate-900">
+          Cancelar pedido
+          <span v-if="pedidoSeleccionado" class="font-bold">
+            #PED-{{ pedidoSeleccionado.id }}
+          </span>
+        </h2>
+
+        <p class="text-sm text-slate-600">
+          Indica el motivo de la cancelación. Este comentario ayudará al personal de la pollería.
+        </p>
+
+        <textarea
+          v-model="motivo"
+          rows="3"
+          class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-amber-400"
+          placeholder="Ejemplo: Me equivoqué en la cantidad, ya no lo necesito, etc."
+        ></textarea>
+
+        <div class="flex justify-end gap-2 pt-2">
+          <button
+            type="button"
+            class="px-4 py-1.5 rounded-full border border-slate-300 text-sm text-slate-600 hover:bg-slate-50"
+            @click="showCancelarModal = false"
+            :disabled="enviando"
+          >
+            Cerrar
+          </button>
+
+          <button
+            type="button"
+            class="px-4 py-1.5 rounded-full bg-rose-600 text-sm font-semibold text-white hover:bg-rose-700 active:scale-95 disabled:opacity-60"
+            @click="confirmarCancelacion"
+            :disabled="enviando || !motivo.trim()"
+          >
+            Confirmar cancelación
+          </button>
+        </div>
+      </div>
+    </div>
   </div>
 </template>

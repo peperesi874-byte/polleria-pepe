@@ -175,26 +175,25 @@ class CheckoutController extends Controller
             ]);
 
             // Crear items si el modelo existe y la relación está definida
-           // Crear items si el modelo existe y la relación está definida
-if (class_exists(PedidoItem::class) && method_exists($pedido, 'items')) {
-    foreach ($items as $it) {
-        $precio = (float) ($it['precio'] ?? $it['price'] ?? 0);
-        $qty    = (int)   ($it['cantidad'] ?? $it['qty'] ?? 0);
-        $prodId = $it['id'] ?? $it['producto_id'] ?? null;
+            if (class_exists(PedidoItem::class) && method_exists($pedido, 'items')) {
+                foreach ($items as $it) {
+                    $precio = (float) ($it['precio'] ?? $it['price'] ?? 0);
+                    $qty    = (int)   ($it['cantidad'] ?? $it['qty'] ?? 0);
+                    $prodId = $it['id'] ?? $it['producto_id'] ?? null;
 
-        if ($qty <= 0 || $precio < 0 || !$prodId) {
-            continue;
-        }
+                    if ($qty <= 0 || $precio < 0 || !$prodId) {
+                        continue;
+                    }
 
-        // 👇 columnas que SÍ existen en pedido_items
-        $pedido->items()->create([
-            'producto_id'     => $prodId,
-            'cantidad'        => $qty,
-            'precio_unitario' => $precio,
-            'subtotal'        => $precio * $qty,
-        ]);
-    }
-}
+                    // 👇 columnas que SÍ existen en pedido_items
+                    $pedido->items()->create([
+                        'producto_id'     => $prodId,
+                        'cantidad'        => $qty,
+                        'precio_unitario' => $precio,
+                        'subtotal'        => $precio * $qty,
+                    ]);
+                }
+            }
 
             return $pedido;
         });
@@ -244,7 +243,8 @@ if (class_exists(PedidoItem::class) && method_exists($pedido, 'items')) {
         $user = $request->user();
 
         $p = Pedido::query()
-            ->with(['items', 'direccion'])
+            // 👇 Cargar también el producto de cada item
+            ->with(['items.producto', 'direccion'])
             ->where('id', $pedido)
             ->where('id_cliente', $user->id)
             ->firstOrFail();
@@ -254,11 +254,14 @@ if (class_exists(PedidoItem::class) && method_exists($pedido, 'items')) {
 
         if ($p->relationLoaded('items') && $p->items->count()) {
             $items = $p->items->map(function ($it) {
-                $precio = (float)($it->precio ?? 0);
+                // nombre seguro del producto
+                $productoNombre = optional($it->producto)->nombre;
+
+                $precio = (float)($it->precio_unitario ?? $it->precio ?? 0);
                 $cant   = (int)($it->cantidad ?? 0);
 
                 return [
-                    'nombre'   => $it->nombre ?? '',
+                    'nombre'   => $productoNombre ?: ($it->nombre ?? ''),   // fallback si no hay producto
                     'precio'   => $precio,
                     'cantidad' => $cant,
                     'subtotal' => (float)($it->subtotal ?? ($precio * $cant)),
@@ -289,6 +292,21 @@ if (class_exists(PedidoItem::class) && method_exists($pedido, 'items')) {
 
         return Inertia::render('Cliente/Checkout/Confirmacion', [
             'pedido' => $payload,
+        ]);
+    }
+
+    /**
+     * 🔹 Listado "Mis pedidos" del cliente (con paginación)
+     */
+    public function pedidos(Request $request)
+    {
+        $user = $request->user();
+
+        $pedidos = Pedido::where('id_cliente', $user->id)
+            ->orderByDesc('created_at')
+            ->paginate(20); // cambia el 5 por cuántos quieras por página
+        return Inertia::render('Cliente/Pedidos/Index', [
+            'pedidos' => $pedidos,
         ]);
     }
 
