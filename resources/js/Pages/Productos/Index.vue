@@ -223,12 +223,6 @@ const totalProductos = computed(() => props.productos?.total ?? 0)
                       Nombre, imagen y descripción corta
                     </span>
                   </th>
-                  <th class="px-4 py-3 text-left font-semibold">
-                    Categoría
-                    <span class="block text-[10px] font-normal text-slate-300">
-                      Agrupación dentro del catálogo
-                    </span>
-                  </th>
                   <th class="px-4 py-3 text-right font-semibold">
                     Precio
                     <span class="block text-[10px] font-normal text-slate-300">
@@ -303,21 +297,7 @@ const totalProductos = computed(() => props.productos?.total ?? 0)
                         </div>
                       </div>
 
-                      <!-- Categoría -->
-                      <div class="flex w-40 flex-col justify-center gap-1">
-                        <span
-                          v-if="p.categoria_nombre"
-                          class="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2.5 py-0.5 text-[11px] font-medium text-amber-900 ring-1 ring-amber-100"
-                        >
-                          🏷 {{ p.categoria_nombre }}
-                        </span>
-                        <span v-else class="text-[11px] text-slate-400">Sin categoría</span>
-
-                        <span class="text-[10px] text-slate-400">
-                          Código: {{ p.codigo ?? '—' }}
-                        </span>
-                      </div>
-
+          
                       <!-- Precio -->
                       <div class="flex w-32 flex-col items-end justify-center gap-1 text-right">
                         <span
