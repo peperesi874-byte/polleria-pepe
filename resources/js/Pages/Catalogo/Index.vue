@@ -134,20 +134,63 @@ onBeforeUnmount(() => {
   if (heroTimer) clearInterval(heroTimer)
 })
 
-/* ----------------- Carrito ----------------- */
+/* ----------------- Toast (mensaje bonito) ----------------- */
+const toast = ref(null)
+
+function showToast (msg) {
+  toast.value = msg
+  setTimeout(() => {
+    toast.value = null
+  }, 2500)
+}
+
+/* ----------------- Carrito (cantidades) ----------------- */
+const cantidades = ref({})
+
+function qtyFor(producto) {
+  const id = producto?.id
+  if (!id) return 1
+  const v = cantidades.value[id]
+  return v && v > 0 ? v : 1
+}
+
+function setQty(id, value) {
+  const n = Number(value) || 1
+  const limpio = Math.min(Math.max(n, 1), 99) // 1–99
+  cantidades.value = {
+    ...cantidades.value,
+    [id]: limpio,
+  }
+}
+
+function incQty(producto) {
+  if (!producto?.id) return
+  const actual = qtyFor(producto)
+  setQty(producto.id, actual + 1)
+}
+
+function decQty(producto) {
+  if (!producto?.id) return
+  const actual = qtyFor(producto)
+  if (actual <= 1) return
+  setQty(producto.id, actual - 1)
+}
+
 function addToCart(producto) {
   if (!producto?.id) return
+
+  const qty = qtyFor(producto)
 
   router.post(
     route('cliente.carrito.add'),
     {
       producto_id: producto.id,
-      qty: 1,
+      qty,
     },
     {
       preserveScroll: true,
       onSuccess: () => {
-        alert('Producto añadido al carrito')
+        showToast(`«${producto.nombre}» (${qty}) se añadió al carrito`)
       },
     }
   )
@@ -168,10 +211,7 @@ const fmtMoney = n =>
 const imgSrc = (p) => {
   if (!p) return '/placeholder-producto.png'
 
-  // misma propiedad que usa el modal
   if (p.imagenUrl) return p.imagenUrl
-
-  // por si en el futuro agregas otras variantes
   if (p.imagen_catalogo_url) return p.imagen_catalogo_url
   if (p.imagen_detalle_url)  return p.imagen_detalle_url
   if (p.imagen_url)          return p.imagen_url
@@ -244,11 +284,10 @@ const imgSrc = (p) => {
             <!-- Solo la imagen del producto -->
             <div class="relative rounded-2xl overflow-hidden border border-amber-100 bg-neutral-50">
               <img
-  :src="imgSrc(currentHeroProduct)"
-  :alt="currentHeroProduct?.nombre"
-  class="mx-auto h-56 w-auto object-contain drop-shadow-md rounded-xl"
-/>
-
+                :src="imgSrc(currentHeroProduct)"
+                :alt="currentHeroProduct?.nombre"
+                class="mx-auto h-56 w-auto object-contain drop-shadow-md rounded-xl"
+              />
             </div>
 
             <!-- Puntos de posición -->
@@ -383,14 +422,14 @@ const imgSrc = (p) => {
         >
           <!-- Imagen -->
           <div
-class="mx-auto h-40 w-auto object-contain transition-transform duration-200 group-hover:scale-105 rounded-xl"
-  @click="openPreview(p)"
->
-  <img
-    :src="imgSrc(p)"
-    :alt="p.nombre"
-    class="mx-auto h-40 w-auto object-contain transition group-hover:scale-[1.03] rounded-xl"
-  />
+            class="mx-auto h-40 w-auto object-contain transition-transform duration-200 group-hover:scale-105 rounded-xl"
+            @click="openPreview(p)"
+          >
+            <img
+              :src="imgSrc(p)"
+              :alt="p.nombre"
+              class="mx-auto h-40 w-auto object-contain transition group-hover:scale-[1.03] rounded-xl"
+            />
             <div
               class="absolute inset-x-0 bottom-0 h-14 bg-gradient-to-t from-black/50 via-black/10 to-transparent"
             ></div>
@@ -443,13 +482,43 @@ class="mx-auto h-40 w-auto object-contain transition-transform duration-200 grou
             <span class="text-[11px] text-neutral-500">
               ID: {{ p.id }}
             </span>
+
+            <!-- Control de cantidad -->
+            <div class="flex items-center gap-1">
+              <button
+                type="button"
+                class="h-7 w-7 rounded-full border border-neutral-300 bg-white text-xs font-bold text-neutral-700 hover:bg-neutral-100"
+                @click="decQty(p)"
+              >
+                −
+              </button>
+
+              <input
+                type="number"
+                min="1"
+                max="99"
+                class="w-12 h-7 rounded-full border border-neutral-300 bg-white text-center text-xs font-semibold text-neutral-800 focus:outline-none focus:ring-1 focus:ring-amber-400"
+                :value="qtyFor(p)"
+                @input="setQty(p.id, $event.target.value)"
+              />
+
+              <button
+                type="button"
+                class="h-7 w-7 rounded-full border border-neutral-300 bg-white text-xs font-bold text-neutral-700 hover:bg-neutral-100"
+                @click="incQty(p)"
+              >
+                ＋
+              </button>
+            </div>
+
+            <!-- Botón agregar -->
             <button
               type="button"
               @click="addToCart(p)"
               class="inline-flex items-center gap-1 rounded-full bg-amber-500 px-4 py-1.5 text-xs font-semibold text-white shadow-sm hover:bg-amber-600"
             >
               <span>Agregar</span>
-              <span>＋</span>
+              <span>🛒</span>
             </button>
           </div>
         </article>
@@ -479,6 +548,16 @@ class="mx-auto h-40 w-auto object-contain transition-transform duration-200 grou
       </div>
     </section>
 
+    <!-- Toast de feedback -->
+    <transition name="fade">
+      <div
+        v-if="toast"
+        class="fixed bottom-6 right-6 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white shadow-lg"
+      >
+        {{ toast }}
+      </div>
+    </transition>
+
     <!-- Quick view -->
     <ProductQuickView
       :open="quickOpen"
@@ -488,3 +567,14 @@ class="mx-auto h-40 w-auto object-contain transition-transform duration-200 grou
     />
   </CatalogLayout>
 </template>
+
+<style scoped>
+.fade-enter-active,
+.fade-leave-active {
+  transition: opacity 0.25s;
+}
+.fade-enter-from,
+.fade-leave-to {
+  opacity: 0;
+}
+</style>

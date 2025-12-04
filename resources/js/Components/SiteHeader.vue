@@ -6,6 +6,27 @@ import { usePage } from '@inertiajs/vue3'
 const page = usePage()
 const user = computed(() => page.props.auth?.user ?? null)
 
+// 👉 Solo cliente (role_id = 4)
+const isCliente = computed(() => {
+  const u = page.props.auth?.user ?? null
+  return Number(u?.role_id ?? 0) === 4
+})
+
+// 👉 Conteo de carrito (toma varias posibles props y si no hay, 0)
+const cartCount = computed(() => {
+  const props = page.props || {}
+
+  const raw =
+    props.cart_count ??
+    props.cartCount ??
+    props.cart?.items_count ??
+    props.cart?.itemsCount ??
+    (Array.isArray(props.cart?.items) ? props.cart.items.length : 0)
+
+  const n = Number(raw)
+  return Number.isFinite(n) && n > 0 ? n : 0
+})
+
 function safeRoute(name, params = {}, absolute = true) {
   try {
     if (typeof route !== 'undefined' && route().has(name)) {
@@ -45,14 +66,33 @@ function initials(str) {
             </div>
           </div>
 
-          <!-- Botón Panel (usa redirect por rol) -->
+          <!-- 🛒 Botón Carrito SOLO CLIENTE -->
           <a
-          :href="safeRoute('dashboard')"
-          class="rounded-lg border border-neutral-300 bg-white px-3 py-1.5 text-sm font-medium text-neutral-700 hover:border-amber-500 hover:text-amber-600 transition"
+            v-if="isCliente"
+            :href="safeRoute('cliente.carrito.index')"
+            class="relative inline-flex h-9 w-9 items-center justify-center rounded-full 
+                   border border-amber-300 bg-amber-50 text-xl hover:bg-amber-100 transition"
+            title="Ver carrito"
           >
-          Panel
+            🛒
+
+            <!-- 🔴 Badge rojo con conteo -->
+            <span
+              v-if="cartCount > 0"
+              class="absolute -top-1 -right-1 inline-flex min-w-[1.1rem] justify-center rounded-full 
+                     bg-red-500 px-1 text-[0.65rem] font-bold leading-none text-white shadow-sm"
+            >
+              {{ cartCount > 9 ? '9+' : cartCount }}
+            </span>
           </a>
 
+          <!-- Botón Panel (usa redirect por rol) -->
+          <a
+            :href="safeRoute('dashboard')"
+            class="rounded-lg border border-neutral-300 bg-white px-3 py-1.5 text-sm font-medium text-neutral-700 hover:border-amber-500 hover:text-amber-600 transition"
+          >
+            Panel
+          </a>
 
           <!-- Botón Cerrar sesión -->
           <form

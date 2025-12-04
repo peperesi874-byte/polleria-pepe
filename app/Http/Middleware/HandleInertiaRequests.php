@@ -51,6 +51,27 @@ class HandleInertiaRequests extends Middleware
                 },
             ],
 
+            // 🛒 Conteo del carrito (para el numerito rojo en el header)
+            'cart_count' => function () {
+                // Intentamos leer el carrito con los distintos nombres que has usado
+                $cartFromSession = session('cart.items')
+                    ?? session('cart')
+                    ?? session('carrito')
+                    ?? session('cart_items')
+                    ?? [];
+
+                // Normalizar estructura: si viene ['items' => [...]]
+                if (is_array($cartFromSession) && array_key_exists('items', $cartFromSession)) {
+                    $rawItems = $cartFromSession['items'] ?? [];
+                } else {
+                    $rawItems = $cartFromSession;
+                }
+
+                $items = is_array($rawItems) ? array_values($rawItems) : [];
+
+                return count($items);
+            },
+
             // ✅ Mensajes flash
             'flash' => [
                 'success' => fn () => $request->session()->get('success'),
